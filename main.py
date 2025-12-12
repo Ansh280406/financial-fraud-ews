@@ -1,74 +1,105 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
-from models import LoginRequest, OTPRequest, AuthResponse
-from detectors import GeoVelocityCheck, BehaviorCheck, OTPCheck
+from fastapi.responses import HTMLResponse
+import json
+import os
+import pickle
 
-app = FastAPI()
+from .models import LoginAttempt
+from .fusion_engine import FusionEngine
+from .detectors import load_detectors
+
+# --- Configuration ---
+# Set the project directory for relative file loading
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Load the Fusion Model
+try:
+    with open(os.path.join(PROJECT_DIR, 'fraud_model.pkl'), 'rb') as f:
+        fusion_model = pickle.load(f)
+except FileNotFoundError:
+    print("Warning: 'fraud_model.pkl' not found. FusionEngine initialized without model.")
+    fusion_model = None
+
+# Load the Detector Scores (simulated data)
+try:
+    # Use the absolute path to load the JSON file
+    detector_scores = load_detectors(os.path.join(PROJECT_DIR, 'detector_scores.json'))
+except FileNotFoundError:
+    print("Error: 'detector_scores.json' not found. Cannot load detector data.")
+    detector_scores = {}
+
+# Initialize the Fusion Engine with the loaded model and detector scores
+fusion_engine = FusionEngine(fusion_model=fusion_model, detector_scores=detector_scores)
+
+# --- FastAPI Setup ---
+app = FastAPI(
+    title="Financial Fraud EWS API",
+    description="Early Warning System for Fraud Detection using ML Fusion Engine."
+)
+
+# --- CORS Configuration (The critical fix) ---
+# Allow all origins for the prototype to work correctly with Render.
+# For production, replace "*" with your specific Render URL: "https://financial-fraud-ews.onrender.com"
+origins = [
+    "*",
+    "http://localhost",
+    "http://localhost:8000",
+    "https://financial-fraud-ews.onrender.com"
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # Allows POST requests
     allow_headers=["*"],
 )
 
-# Initialize Engines
-geo_engine = GeoVelocityCheck()
-ai_engine = BehaviorCheck()
-otp_engine = OTPCheck()
 
-# MOCK DB (Stores User History + Credentials)
-DB = {
-    "user": {
-        "password": "password123",
-        "last_lat": 28.7041, "last_lon": 77.1025, # New Delhi
-        "last_login": datetime.now() - timedelta(hours=24),
-        "otp_secret": "1234"
+# --- API Endpoints ---
+
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    """Serves the main dashboard HTML file."""
+    index_path = os.path.join(PROJECT_DIR, 'index.html')
+    if not os.path.exists(index_path):
+        return HTMLResponse("<h1>Index file not found!</h1>", status_code=404)
+    with open(index_path, 'r') as f:
+        html_content = f.read()
+    return HTMLResponse(content=html_content)
+
+@app.post("/predict")
+async def predict_fraud(login_attempt: LoginAttempt):
+    """
+    Accepts a LoginAttempt and returns the risk assessment from the Fusion Engine.
+    """
+    user_id = login_attempt.user_id
+    
+    # 1. Get detector scores for the user_id (simulated)
+    if user_id not in fusion_engine.detector_scores:
+        raise HTTPException(
+            status_code=404, 
+            detail="User ID not found in simulated data. Use one of: demo_user, demo_travel, demo_otp, demo_impersonation"
+        )
+        
+    scores = fusion_engine.detector_scores[user_id]
+    
+    # 2. Run the Fusion Engine to get the final risk score and action
+    result = fusion_engine.run_assessment(
+        user_id=user_id,
+        detector_scores=scores
+    )
+    
+    # 3. Format the final response
+    response_data = {
+        "final_risk_score": result['final_risk_score'],
+        "security_action": result['action'],
+        "detector_scores": {
+            "A1_Behavior_DNA": scores.get('A1_Behavior_DNA', 0.0),
+            "A2_Geo_Velocity": scores.get('A2_Geo_Velocity', 0.0),
+            "A3_OTP_Misuse": scores.get('A3_OTP_Misuse', 0.0)
+        }
     }
-}
-
-@app.post("/login", response_model=AuthResponse)
-def login(data: LoginRequest):
-    print(f"Login Attempt: {data.user_id} | Lat: {data.latitude} | TypeSpeed: {data.avg_keystroke_delay}s")
-
-    # 1. Verify Credentials
-    user = DB.get(data.user_id)
-    if not user or user["password"] != data.password:
-        return {"status": "BLOCKED", "message": "Invalid Credentials", "risk_score": 0.0}
-
-    # 2. Run AI & Geo Checks
-    geo_risk = geo_engine.get_risk(data.latitude, data.longitude, user)
-    ai_risk = ai_engine.get_risk(data.avg_keystroke_delay)
     
-    total_risk = (geo_risk + ai_risk) / 2
-    
-    # 3. Update History (if safe-ish)
-    if geo_risk == 0:
-        user['last_lat'] = data.latitude
-        user['last_lon'] = data.longitude
-        user['last_login'] = datetime.now()
-
-    # 4. Decision
-    if geo_risk == 1.0:
-        return {"status": "BLOCKED", "message": "Impossible Travel Detected", "risk_score": 1.0}
-    
-    if ai_risk == 1.0:
-        # AI thinks it's a bot/imposter, but we give a chance via OTP
-        return {"status": "MFA_REQUIRED", "message": "Unusual Typing Detected", "risk_score": 1.0}
-
-    return {"status": "MFA_REQUIRED", "message": "Login Validated. Enter OTP.", "risk_score": 0.0}
-
-@app.post("/verify-otp", response_model=AuthResponse)
-def verify_otp(data: OTPRequest):
-    # 1. Check Bot Flooding
-    if otp_engine.check_flood(data.user_id):
-        return {"status": "BLOCKED", "message": "Too many OTP attempts (Bot detected)", "risk_score": 1.0}
-
-    # 2. Verify Code
-    if data.otp_code == "1234": # Hardcoded for demo
-        otp_engine.reset(data.user_id)
-        return {"status": "SUCCESS", "message": "Access Granted", "risk_score": 0.0}
-    
-    return {"status": "FAILED", "message": "Invalid OTP", "risk_score": 0.5}
+    return response_data

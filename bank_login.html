@@ -84,7 +84,7 @@
             
             try {
                 // CHANGE URL TO YOUR RENDER URL IF NEEDED
-                const res = await fetch('http://127.0.0.1:8000/login', {
+                const res = await fetch('https://financial-fraud-ews.onrender.com/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -115,7 +115,7 @@
             const status = document.getElementById('status');
 
             try {
-                const res = await fetch('http://127.0.0.1:8000/verify-otp', {
+                const res = await fetch('https://financial-fraud-ews.onrender.com/verify-otp', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ user_id: user, otp_code: otp })
