@@ -1,11 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import random
+from datetime import datetime, timedelta
+
+# Import your modules
+from models import LoginRequest, RiskAssessmentResponse
+from detectors import GeoVelocityCheck, OTPFraudCheck, BehavioralCheck
+from fusion_engine import calculate_final_risk, get_security_action, WEIGHTS
 
 app = FastAPI()
 
-# 1. Allow Frontend to Connect
+# 1. CORS (So your HTML works with the Cloud Server)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,53 +18,72 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Define the Data Model (Must match your JavaScript!)
-class LoginData(BaseModel):
-    user_id: str
-    password: str
-    ip_address: str
-    device_fingerprint: str
+# 2. Initialize Detectors
+geo_detector = GeoVelocityCheck()
+otp_detector = OTPFraudCheck()
+behavior_detector = BehavioralCheck()
 
-# 3. The Prediction Endpoint
-@app.post("/predict")
-def predict_risk(data: LoginData):
-    print(f"Analyzing login for: {data.user_id}")
+# 3. MOCK DATABASE
+# We use 'timedelta' here to ensure the last login was definitely in the past.
+# This prevents the "0 seconds elapsed" issue when the server restarts.
+MOCK_DB = {
+    "demo_user": {
+        "last_lat": 28.7041, "last_lon": 77.1025, # New Delhi
+        "last_login_time": datetime.now() - timedelta(hours=24), # Logged in yesterday
+        "avg_spend": 500.0,
+        "failed_otp_count": 0
+    },
+    "demo_travel": {
+        "last_lat": 40.7128, "last_lon": -74.0060, # New York
+        "last_login_time": datetime.now() - timedelta(hours=2), # Logged in 2 Hours ago
+        "avg_spend": 200.0,
+        "failed_otp_count": 0
+    },
+    "demo_otp": {
+        "last_lat": 28.7041, "last_lon": 77.1025,
+        "last_login_time": datetime.now() - timedelta(hours=1),
+        "avg_spend": 500.0,
+        "failed_otp_count": 5 # ALREADY HAS 5 FAILURES
+    }
+}
 
-    # --- SIMULATION LOGIC ---
-    # We fake the scores based on which button you clicked (user_id)
-    
-    risk_score = 0.1  # Default safe
-    action = "ALLOW"
-    detectors = {
-        "A1_Behavior_DNA": "LOW",
-        "A2_Geo_Velocity": "LOW", 
-        "A3_OTP_Misuse": "LOW"
+@app.post("/predict", response_model=RiskAssessmentResponse)
+def predict_risk(data: LoginRequest):
+    print(f"Analyzing Request for: {data.user_id}")
+
+    # A. Fetch History (or create default)
+    user_history = MOCK_DB.get(data.user_id, {
+        "last_lat": 0.0, "last_lon": 0.0,
+        "avg_spend": 100.0,
+        "failed_otp_count": 0,
+        "last_login_time": datetime.now() - timedelta(hours=24)
+    })
+
+    # B. Run Detectors (REAL LOGIC)
+    score_a1 = behavior_detector.get_score(data, user_history)
+    score_a2 = geo_detector.get_score(data, user_history)
+    score_a3 = otp_detector.get_score(data, user_history)
+
+    # C. Fusion Engine (Calculate Final Score)
+    final_score = calculate_final_risk(score_a1, score_a2, score_a3)
+    decision = get_security_action(final_score)
+
+    # D. Prepare Response
+    response = {
+        "final_risk_score": round(final_score, 2),
+        "security_action": decision["action"],
+        "risk_level": decision["level"],
+        "detector_scores": {
+            "A1_Behavior_DNA": round(score_a1, 2),
+            "A2_Geo_Velocity": round(score_a2, 2),
+            "A3_OTP_Misuse": round(score_a3, 2)
+        },
+        "weights": WEIGHTS
     }
 
-    if data.user_id == "demo_travel":
-        risk_score = 0.95
-        action = "BLOCK"
-        detectors["A2_Geo_Velocity"] = "CRITICAL (3000km/h)"
-        detectors["A1_Behavior_DNA"] = "MEDIUM"
-        
-    elif data.user_id == "demo_otp":
-        risk_score = 0.85
-        action = "MFA_CHALLENGE"
-        detectors["A3_OTP_Misuse"] = "HIGH (Rapid Attempts)"
+    return response
 
-    elif data.user_id == "demo_impersonation":
-        risk_score = 0.75
-        action = "VERIFY_IDENTITY"
-        detectors["A1_Behavior_DNA"] = "HIGH (Keystroke Mismatch)"
-
-    # Return the exact JSON format your HTML expects
-    return {
-        "final_risk_score": risk_score,
-        "security_action": action,
-        "detector_scores": detectors
-    }
-
-# 4. Health Check
+# Health Check
 @app.get("/")
 def home():
-    return {"message": "Fraud Detection Server is Running"}
+    return {"status": "Active", "system": "Real-Time Logic Enabled"}
