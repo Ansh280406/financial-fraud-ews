@@ -2,253 +2,113 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fraud Detection Prototype</title>
+    <title>Real-Time Fraud Guard</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .dashboard { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 450px; text-align: center; position: relative; }
-        
-        h1 { color: #1a202c; font-size: 1.6rem; margin-bottom: 0.5rem; }
-        .subtitle { font-size: 0.9rem; color: #718096; margin-bottom: 1.5rem; }
-        
-        /* Interactive Simulation Badge */
-        .simulation-badge {
-            background-color: #fffaf0;
-            color: #dd6b20;
-            border: 1px solid #fbd38d;
-            font-size: 0.75rem;
-            font-weight: bold;
-            padding: 6px 12px;
-            border-radius: 20px; /* Pill shape */
-            display: inline-block;
-            margin-bottom: 15px;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            cursor: pointer; /* Clickable */
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 5px rgba(221, 107, 32, 0.1);
-        }
-        .simulation-badge:hover {
-            background-color: #fbd38d;
-            color: #7b341e;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(221, 107, 32, 0.2);
-        }
-        .simulation-badge::after {
-            content: " ℹ️"; /* visual cue */
-            font-size: 0.8rem;
-        }
-
-        .scenarios { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
-        button { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: transform 0.1s; font-size: 0.9rem; }
-        button:active { transform: scale(0.98); }
-        
-        .btn-safe { background-color: #e6fffa; color: #2c7a7b; border: 1px solid #b2f5ea; }
-        .btn-risk { background-color: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
-        .btn-travel { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
-        
-        #result-box { display: none; margin-top: 20px; text-align: left; background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; }
-        
-        .score-label { text-align: center; font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
-        .score-display { font-size: 3rem; font-weight: bold; text-align: center; margin: 5px 0 15px 0; }
-        
-        .safe { color: #38a169; }
-        .danger { color: #e53e3e; }
-        
-        .badge { display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 0.9rem; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box; }
-        
-        .details { margin-top: 20px; font-size: 0.9rem; color: #4a5568; }
-        .detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; }
-        .detail-row:last-child { border-bottom: none; }
-
-        .disclaimer { margin-top: 25px; font-size: 0.75rem; color: #a0aec0; border-top: 1px solid #eee; padding-top: 10px; font-style: italic; }
-
-        /* Modal Styles */
-        .modal {
-            display: none; 
-            position: fixed; 
-            z-index: 100; 
-            left: 0;
-            top: 0;
-            width: 100%; 
-            height: 100%; 
-            overflow: auto; 
-            background-color: rgba(0,0,0,0.5); 
-            backdrop-filter: blur(4px);
-        }
-        .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto; 
-            padding: 30px;
-            border: 1px solid #888;
-            width: 80%; 
-            max-width: 600px;
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            text-align: left;
-            position: relative;
-        }
-        .close-btn {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 20px;
-        }
-        .close-btn:hover { color: black; }
-        .modal h2 { margin-top: 0; color: #2d3748; }
-        .modal h3 { color: #4a5568; margin-top: 20px; border-bottom: 2px solid #edf2f7; padding-bottom: 5px; font-size: 1.1rem; }
-        .modal p { color: #4a5568; line-height: 1.6; font-size: 0.95rem; }
-        .modal ul { margin: 10px 0; padding-left: 20px; }
-        .modal li { margin-bottom: 8px; color: #4a5568; font-size: 0.95rem; }
+        body { font-family: 'Segoe UI', sans-serif; background: #e2e8f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        button:hover { background: #2b6cb0; }
+        #status { margin-top: 20px; padding: 10px; border-radius: 6px; font-weight: bold; display: none; }
+        .error { background: #fed7d7; color: #c53030; }
+        .success { background: #c6f6d5; color: #2f855a; }
+        .warning { background: #feebc8; color: #b7791f; }
+        .sensor-data { font-size: 0.8rem; color: #718096; margin-top: 15px; text-align: left; }
     </style>
 </head>
 <body>
-
-    <div id="infoModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeInfo()">&times;</span>
-            <h2>System Architecture Explained</h2>
-            
-            <h3>1. Prototype Simulation Mode (Current)</h3>
-            <p>
-                In this prototype, we simulate specific attack vectors (like "Impossible Travel") by injecting pre-calculated data payloads. 
-                When you click a button, the frontend sends a special User ID to the Python backend to demonstrate how the <strong>Fusion Engine</strong> reacts to high-risk inputs.
-            </p>
-
-            <h3>2. Real-World Implementation (Hackathon Phase)</h3>
-            <p>In the live production build, the system works autonomously:</p>
-            <ul>
-                <li><strong>Ingestion:</strong> The API intercepts the login request in real-time.</li>
-                <li><strong>Enrichment:</strong> It queries a database (Redis/PostgreSQL) to fetch the user's historical profile (Last Known Location, Trusted Devices).</li>
-                <li><strong>Inference:</strong> The 3 ML Detectors run on the live data stream to calculate anomaly scores dynamically.</li>
-                <li><strong>Decision:</strong> The Fusion Engine blocks the request automatically if the weighted score exceeds the threshold.</li>
-            </ul>
-        </div>
-    </div>
-
-    <div class="dashboard">
-        <div class="simulation-badge" onclick="openInfo()">⚠️ Prototype Simulation Mode</div>
+    <div class="card">
+        <h2>🏦 Secure Login</h2>
+        <p style="color:#718096; font-size:0.9rem;">AI is analyzing your behavior & location.</p>
         
-        <h1>🛡️ Security Center</h1>
-        <p class="subtitle">Select a scenario to test the Defense-in-Depth Logic</p>
+        <input type="text" id="username" placeholder="Username (Try: demo_user)">
+        <input type="password" id="password" placeholder="Password" onkeyup="measureTyping()">
         
-        <div class="scenarios">
-            <button class="btn-safe" onclick="testLogin('demo_user')">✅ Normal User</button>
-            <button class="btn-travel" onclick="testLogin('demo_travel')">✈️ Impossible Travel</button>
-            <button class="btn-risk" onclick="testLogin('demo_otp')">🤖 OTP Attack</button>
-            <button class="btn-risk" onclick="testLogin('demo_impersonation')">🎭 Impersonation</button>
+        <button onclick="attemptLogin()">Log In</button>
+        
+        <div class="sensor-data">
+            <div>⌨️ Typing Delay: <span id="disp-typing">0</span> ms</div>
+            <div>🌍 Location: <span id="disp-loc">Detecting...</span></div>
         </div>
 
-        <div id="result-box">
-            <div class="score-label">Final Risk Score</div>
-            <div id="risk-score" class="score-display">-</div>
-            
-            <div style="text-align: center; margin-bottom: 20px;">
-                <span id="action-badge" class="badge">-</span>
-            </div>
-            
-            <div class="details">
-                <div class="detail-row"><span>🧠 Behavior DNA:</span> <strong id="score-a1">-</strong></div>
-                <div class="detail-row"><span>🌍 Geo-Velocity:</span> <strong id="score-a2">-</strong></div>
-                <div class="detail-row"><span>📲 OTP Check:</span> <strong id="score-a3">-</strong></div>
-            </div>
-        </div>
-
-        <div class="disclaimer">
-            * Note: This dashboard uses simulated data for prototype demonstration. 
-            Real-time data ingestion and live ML model inference will be implemented during the Hackathon phase.
-        </div>
+        <div id="status"></div>
     </div>
 
     <script>
-        // Modal Logic
-        function openInfo() {
-            document.getElementById("infoModal").style.display = "block";
-        }
-        function closeInfo() {
-            document.getElementById("infoModal").style.display = "none";
-        }
-        // Close modal if user clicks outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById("infoModal");
-            if (event.target == modal) {
-                modal.style.display = "none";
-            }
+        // --- SENSOR VARIABLES ---
+        let lastKeyTime = 0;
+        let delays = [];
+        let userLat = 0.0;
+        let userLon = 0.0;
+
+        // 1. Get Real Location immediately
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userLat = pos.coords.latitude;
+                    userLon = pos.coords.longitude;
+                    document.getElementById('disp-loc').innerText = `${userLat.toFixed(2)}, ${userLon.toFixed(2)}`;
+                },
+                (err) => {
+                    document.getElementById('disp-loc').innerText = "Blocked/Unknown (Using 0,0)";
+                }
+            );
         }
 
-        async function testLogin(userIdTrigger) {
-            const resultBox = document.getElementById('result-box');
-            resultBox.style.display = 'block';
-            resultBox.style.opacity = '0.5'; // Loading effect
+        // 2. Measure Typing Speed (Keystroke Dynamics)
+        function measureTyping() {
+            const now = Date.now();
+            if (lastKeyTime !== 0) {
+                const diff = now - lastKeyTime;
+                delays.push(diff);
+                // Update UI average
+                const avg = Math.round(delays.reduce((a,b)=>a+b,0) / delays.length);
+                document.getElementById('disp-typing').innerText = avg;
+            }
+            lastKeyTime = now;
+        }
+
+        // 3. Send to AI
+        async function attemptLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const status = document.getElementById('status');
+            
+            // Calculate Average Delay (Default 0 for bots/paste)
+            let avgDelay = 0;
+            if (delays.length > 0) {
+                avgDelay = delays.reduce((a, b) => a + b, 0) / delays.length;
+            }
+
+            status.style.display = 'block';
+            status.innerText = "🔄 Processing with AI Fusion...";
+            status.className = "warning";
 
             try {
-                // IMPORTANT: We send the correct password based on the scenario
-                let password = "password123";
-                if(userIdTrigger == "demo_travel") password = "travel123";
-                if(userIdTrigger == "demo_otp") password = "bot123";
-                if(userIdTrigger == "demo_impersonation") password = "hacker123";
-
-                // --- API CALL ---
-                // The URL is correct: your Render service URL + the /predict endpoint
-                const response = await fetch(`https://financial-fraud-ews.onrender.com/predict`, {
+                const res = await fetch('/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        user_id: userIdTrigger, 
-                        password: password,      
-                        ip_address: "192.168.1.1",
-                        device_fingerprint: "device_123"
+                        user_id: user,
+                        password: pass,
+                        latitude: userLat,
+                        longitude: userLon,
+                        typing_delay: avgDelay,
+                        device_fingerprint: "browser_v1"
                     })
                 });
 
-                if (!response.ok) {
-                    // Check for 404 specifically
-                    if (response.status === 404) {
-                        throw new Error(`Endpoint /predict not found on server (404). Check backend routing.`);
-                    }
-                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
-                }
-
-                const data = await response.json();
-
-                // Update UI with real data
-                const score = data.final_risk_score;
-                const scoreEl = document.getElementById('risk-score');
-                const badgeEl = document.getElementById('action-badge');
-
-                scoreEl.innerText = (score * 100).toFixed(0) + "%";
+                const data = await res.json();
                 
-                // Color coding logic
-                if (score > 0.8) {
-                    scoreEl.className = "score-display danger";
-                    badgeEl.style.backgroundColor = "#fed7d7";
-                    badgeEl.style.color = "#c53030";
-                } else if (score > 0.4) {
-                    scoreEl.className = "score-display";
-                    scoreEl.style.color = "#d69e2e"; // Yellow/Orange
-                    badgeEl.style.backgroundColor = "#fefcbf";
-                    badgeEl.style.color = "#b7791f";
-                } else {
-                    scoreEl.className = "score-display safe";
-                    badgeEl.style.backgroundColor = "#c6f6d5";
-                    badgeEl.style.color = "#2f855a";
-                }
+                status.innerText = `${data.security_action}`;
+                
+                if (data.security_action.includes("BLOCK")) status.className = "error";
+                else if (data.security_action.includes("ALLOW")) status.className = "success";
+                else status.className = "warning";
 
-                badgeEl.innerText = data.security_action;
-
-                // Update individual detectors
-                document.getElementById('score-a1').innerText = data.detector_scores.A1_Behavior_DNA;
-                document.getElementById('score-a2').innerText = data.detector_scores.A2_Geo_Velocity;
-                document.getElementById('score-a3').innerText = data.detector_scores.A3_OTP_Misuse;
-
-            } catch (error) {
-                // Modified alert for better debugging
-                alert(`API Connection Failed! Error: ${error.message}. Check browser console (F12) and Render logs.`);
-                console.error("API Fetch Error:", error);
-            } finally {
-                resultBox.style.opacity = '1';
+            } catch (e) {
+                status.innerText = "Error: " + e.message;
+                status.className = "error";
             }
         }
     </script>

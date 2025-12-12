@@ -1,36 +1,58 @@
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import IsolationForest
+from sklearn.linear_model import LogisticRegression
 import joblib
 
-# --- REAL LIFE IMPERSONATION DATA ---
-# Feature: "Average Keystroke Delay" (seconds)
-# Humans: Usually 0.1s to 0.3s per key.
-# Bots: Near 0.0s (Instant paste).
-# Impersonators/Elderly/Distracted: > 0.5s (Searching for keys).
+def train_models():
+    print("🧠 Training Real-World AI Models...")
+    rng = np.random.RandomState(42)
 
-rng = np.random.RandomState(42)
+    # --- MODEL 1: BEHAVIOR AI (Keystroke Dynamics) ---
+    # Detects: Bots (too fast) or Impersonators (too slow/erratic)
+    # Feature: Average Keystroke Delay (seconds)
+    
+    # 1. Generate "Normal Human" Data (0.1s - 0.3s delay)
+    X_human = 0.2 + 0.05 * rng.randn(1000, 1)
+    X_human = np.clip(X_human, 0.1, 0.4)
+    
+    # 2. Generate "Bot" Data (0.0s - 0.02s delay)
+    X_bot = rng.uniform(0.0, 0.02, size=(100, 1))
+    
+    # 3. Train Isolation Forest (Anomaly Detector)
+    # -1 = Anomaly (Bot/Impersonator), 1 = Normal
+    X_train_behavior = np.concatenate([X_human, X_bot])
+    behavior_model = IsolationForest(contamination=0.1, random_state=42)
+    behavior_model.fit(X_train_behavior)
+    
+    joblib.dump(behavior_model, "behavior_model.pkl")
+    print("✅ 'behavior_model.pkl' (Isolation Forest) Saved!")
 
-# 1. Generate "Normal Human" Data (1000 samples)
-# Normal distribution around 0.15s (150ms) with some variance
-X_humans = 0.15 + 0.05 * rng.randn(1000, 1)
-# Clip to realistic bounds (0.05s to 0.4s)
-X_humans = np.clip(X_humans, 0.05, 0.4)
 
-# 2. Generate "Anomalies" (Bots & Impersonators)
-# Bots: Super fast (0.001s)
-X_bots = rng.uniform(low=0.0, high=0.02, size=(50, 1))
-# Slow Typers: Very slow (0.6s to 1.0s)
-X_slow = rng.uniform(low=0.6, high=1.0, size=(50, 1))
+    # --- MODEL 2: FUSION ENGINE (Risk Aggregator) ---
+    # Decides: Block vs Allow based on 3 scores
+    # Features: [Behavior_Score, Geo_Score, OTP_Score]
+    # Target: 1 (Fraud), 0 (Safe)
+    
+    # Generate Synthetic Training Data for Fusion
+    # Columns: [Behavior_Risk, Geo_Risk, OTP_Risk]
+    
+    # Case A: Safe Users (Low scores across board)
+    X_safe = rng.uniform(0, 0.3, size=(500, 3))
+    y_safe = np.zeros(500)
+    
+    # Case B: Fraudsters (High scores in at least one area)
+    X_fraud = rng.uniform(0.6, 1.0, size=(500, 3))
+    y_fraud = np.ones(500)
+    
+    X_fusion = np.vstack([X_safe, X_fraud])
+    y_fusion = np.hstack([y_safe, y_fraud])
+    
+    fusion_model = LogisticRegression()
+    fusion_model.fit(X_fusion, y_fusion)
+    
+    joblib.dump(fusion_model, "fusion_model.pkl")
+    print("✅ 'fusion_model.pkl' (Logistic Regression) Saved!")
 
-# Combine
-X_train = np.concatenate([X_humans, X_bots, X_slow])
-
-# 3. Train Model
-clf = IsolationForest(contamination=0.1, random_state=42)
-clf.fit(X_train)
-
-# 4. Save
-joblib.dump(clf, "fraud_model.pkl")
-print("✅ Keystroke Dynamics Model Trained & Saved!")
-print("   - Learns that Humans type ~150ms per key.")
-print("   - Will flag Bots (instant) or Impersonators (hesitant).")
+if __name__ == "__main__":
+    train_models()

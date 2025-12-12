@@ -1,52 +1,42 @@
 import numpy as np
-import pickle
+import joblib
 
 class FusionEngine:
-    def __init__(self, fusion_model=None):
-        self.model = fusion_model
+    def __init__(self):
+        self.model = None
+        try:
+            self.model = joblib.load("fusion_model.pkl")
+        except:
+            print("⚠️ Fusion Model not found. Using Rule-Based Fallback.")
 
     def run_assessment(self, detector_scores: dict) -> dict:
-        """
-        Aggregates scores and applies specific rules for Block vs Mail.
-        """
+        # 1. Extract Features
+        s1 = detector_scores.get('A1_Behavior_DNA', 0.0)
+        s2 = detector_scores.get('A2_Geo_Velocity', 0.0)
+        s3 = detector_scores.get('A3_OTP_Misuse', 0.0)
         
-        # Extract scores (default to 0.0 if missing)
-        s1_behavior = detector_scores.get('A1_Behavior_DNA', 0.0)
-        s2_geo = detector_scores.get('A2_Geo_Velocity', 0.0)
-        s3_otp = detector_scores.get('A3_OTP_Misuse', 0.0)
-        
-        # --- RULE 1: CRITICAL BLOCKS (Travel & Bot) ---
-        # If physically impossible travel OR brute force OTP -> IMMEDIATE BLOCK
-        if s2_geo > 0.9:
-            return {
-                'final_risk_score': float(s2_geo),
-                'action': "🚫 BLOCK: Impossible Travel Detected"
-            }
-        
-        if s3_otp > 0.9:
-            return {
-                'final_risk_score': float(s3_otp),
-                'action': "🚫 BLOCK: OTP Brute Force Detected"
-            }
+        # 2. VETO RULE (Immediate Block)
+        # If Impossible Travel (1.0) or Bot (1.0) -> BLOCK
+        if s2 >= 0.9:
+            return {'final_risk_score': 1.0, 'action': "🚫 BLOCK: Impossible Travel"}
+        if s3 >= 0.9:
+            return {'final_risk_score': 1.0, 'action': "🚫 BLOCK: Brute Force Attack"}
 
-        # --- RULE 2: IMPERSONATION (Behavior) ---
-        # If behavior is anomalous (Impersonation), but Geo/OTP are okay -> SEND MAIL
-        # We check if Behavior is High (> 0.8)
-        if s1_behavior > 0.8:
-            return {
-                'final_risk_score': float(s1_behavior),
-                'action': "📧 ACTION: Impersonation Suspected - Email Sent"
-            }
+        # 3. AI FUSION
+        if self.model:
+            # Predict probability of fraud
+            risk_score = self.model.predict_proba([[s1, s2, s3]])[:, 1][0]
+        else:
+            # Fallback Weighted Average
+            risk_score = (s1 * 0.3) + (s2 * 0.4) + (s3 * 0.3)
 
-        # --- RULE 3: NORMAL AGGREGATION ---
-        # If no specific rule triggered, calculate weighted risk
-        # Weights: Behavior(20%), Geo(40%), OTP(40%)
-        risk_score = (s1_behavior * 0.2) + (s2_geo * 0.4) + (s3_otp * 0.4)
-
-        if risk_score > 0.85:
-            action = "🚫 BLOCK ACCESS (High Aggregated Risk)"
+        # 4. DECISION
+        if risk_score > 0.8:
+            action = "🚫 BLOCK ACCESS"
         elif risk_score > 0.5:
-            action = "⚠️ FLAG: Verify Identity"
+            action = "⚠️ FLAG & CHALLENGE"
+        elif s1 == 1.0: # Specific catch for Behavioral Anomaly
+             action = "📧 ACTION: Verify Identity (Email Sent)"
         else:
             action = "✅ ALLOW ACCESS"
             

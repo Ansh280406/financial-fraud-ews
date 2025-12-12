@@ -4,15 +4,22 @@
     <meta charset="UTF-8">
     <title>Secure Bank Login</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 350px; text-align: center; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 380px; text-align: center; }
+        
+        h2 { color: #1a202c; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: background 0.2s; }
         button:hover { background: #0056b3; }
+        
         .hidden { display: none; }
-        #status { margin-top: 15px; font-weight: bold; }
-        .error { color: red; }
-        .success { color: green; }
+        #status { margin-top: 20px; font-weight: bold; padding: 10px; border-radius: 6px; font-size: 0.9rem; }
+        
+        .error { background-color: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+        .success { background-color: #f0fff4; color: #2f855a; border: 1px solid #c6f6d5; }
+        .warning { background-color: #fffff0; color: #b7791f; border: 1px solid #fbd38d; }
+        
+        .info-text { font-size: 12px; color: #718096; margin-top: 15px; }
     </style>
 </head>
 <body>
@@ -21,115 +28,111 @@
         <h2>Global Bank</h2>
         
         <div id="login-form">
-            <input type="text" id="username" placeholder="Username (user)">
-            <input type="password" id="password" placeholder="Password (password123)" onkeyup="trackTyping()">
+            <input type="text" id="username" placeholder="Username (e.g., demo_user)">
+            <input type="password" id="password" placeholder="Password">
             <button onclick="handleLogin()">Log In</button>
-            <p style="font-size:12px; color:#666;">Allow Location Access for Security Check</p>
+            <p class="info-text">Protected by AI Fraud Detection</p>
         </div>
 
         <div id="otp-form" class="hidden">
-            <h3>Identity Verification</h3>
-            <p>Enter the code sent to your device.</p>
+            <h3>⚠️ Security Check</h3>
+            <p style="font-size: 0.9rem; color: #4a5568;">Unusual activity detected. Please verify your identity.</p>
             <input type="text" id="otp" placeholder="Enter OTP (1234)">
-            <button onclick="handleOTP()">Verify</button>
+            <button onclick="handleOTP()">Verify OTP</button>
         </div>
 
-        <div id="status"></div>
+        <div id="status" class="hidden"></div>
     </div>
 
     <script>
-        // --- REAL LIFE SENSORS ---
-        let keystrokes = [];
-        let lastKeyTime = 0;
-
-        // 1. Keystroke Dynamics Tracker
-        function trackTyping() {
-            const now = Date.now();
-            if (lastKeyTime !== 0) {
-                const delay = (now - lastKeyTime) / 1000; // Convert to seconds
-                keystrokes.push(delay);
-            }
-            lastKeyTime = now;
-        }
-
-        function getAvgTypingSpeed() {
-            if (keystrokes.length === 0) return 0.0; // Bot/Paste behavior
-            const sum = keystrokes.reduce((a, b) => a + b, 0);
-            return sum / keystrokes.length;
-        }
-
-        // 2. Geolocation Tracker
-        function getPosition() {
-            return new Promise((resolve, reject) => {
-                if (!navigator.geolocation) resolve({coords: {latitude: 0, longitude: 0}});
-                navigator.geolocation.getCurrentPosition(resolve, (err) => {
-                    console.warn("Location denied, using default");
-                    resolve({coords: {latitude: 28.7041, longitude: 77.1025}}); // Default fallback
-                });
-            });
-        }
-
         // --- HANDLERS ---
 
         async function handleLogin() {
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
-            const status = document.getElementById('status');
-            const avgSpeed = getAvgTypingSpeed();
+            const statusDiv = document.getElementById('status');
+            const loginForm = document.getElementById('login-form');
+            const otpForm = document.getElementById('otp-form');
 
-            status.innerText = "Analyzing Biometrics & Location...";
-            
-            // Get Real Location
-            const pos = await getPosition();
-            
+            // Reset UI
+            statusDiv.className = "hidden";
+            statusDiv.innerText = "";
+
+            if (!user) {
+                showStatus("Please enter a username", "error");
+                return;
+            }
+
+            // Show loading state
+            statusDiv.innerText = "Analyzing Risk Profile...";
+            statusDiv.className = "warning";
+            statusDiv.classList.remove("hidden");
+
             try {
-                // CHANGE URL TO YOUR RENDER URL IF NEEDED
-                const res = await fetch('https://financial-fraud-ews.onrender.com/login', {
+                // 1. Call the PREDICT Endpoint
+                const res = await fetch('https://financial-fraud-ews.onrender.com/predict', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         user_id: user,
                         password: pass,
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                        avg_keystroke_delay: avgSpeed
+                        ip_address: "192.168.1.1",     // Simulated for prototype
+                        device_fingerprint: "chrome_win10" // Simulated for prototype
                     })
                 });
-                
-                const data = await res.json();
-                
-                if (data.status === "MFA_REQUIRED") {
-                    document.getElementById('login-form').classList.add('hidden');
-                    document.getElementById('otp-form').classList.remove('hidden');
-                    status.innerText = "";
-                } else {
-                    status.innerText = data.message;
-                    status.className = "error";
+
+                if (!res.ok) {
+                    throw new Error("Server Error or User Not Found");
                 }
-            } catch (e) { console.error(e); status.innerText = "Connection Error"; }
+
+                const data = await res.json();
+                const action = data.security_action;
+
+                // 2. Handle the Security Action
+                if (action.includes("BLOCK")) {
+                    // CASE: Block
+                    showStatus(action, "error");
+                
+                } else if (action.includes("FLAG") || action.includes("CHALLENGE")) {
+                    // CASE: Challenge (Show OTP)
+                    loginForm.classList.add("hidden");
+                    otpForm.classList.remove("hidden");
+                    showStatus(action, "warning");
+                
+                } else if (action.includes("Email")) {
+                     // CASE: Impersonation (Show Warning but Allow or Ask for Info)
+                     showStatus(action + " - Please check your inbox.", "warning");
+
+                } else {
+                    // CASE: Allow
+                    showStatus("Login Successful! Redirecting...", "success");
+                    // setTimeout(() => window.location.href = "/dashboard", 1000); // Redirect logic
+                }
+
+            } catch (e) {
+                console.error(e);
+                showStatus("Error: " + e.message, "error");
+            }
         }
 
-        async function handleOTP() {
+        function handleOTP() {
             const otp = document.getElementById('otp').value;
-            const user = document.getElementById('username').value;
-            const status = document.getElementById('status');
+            
+            // Since we don't have a backend OTP endpoint in the prototype, 
+            // we simulate the verification here.
+            if (otp === "1234") {
+                document.getElementById('otp-form').classList.add("hidden");
+                showStatus("Identity Verified. Login Successful!", "success");
+            } else {
+                alert("Invalid OTP. Try '1234'");
+            }
+        }
 
-            try {
-                const res = await fetch('https://financial-fraud-ews.onrender.com/verify-otp', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ user_id: user, otp_code: otp })
-                });
-
-                const data = await res.json();
-                
-                status.innerText = data.message;
-                status.className = data.status === "SUCCESS" ? "success" : "error";
-                
-                if (data.status === "SUCCESS") {
-                    setTimeout(() => alert("Welcome to Dashboard!"), 500);
-                }
-            } catch (e) { console.error(e); }
+        function showStatus(message, type) {
+            const el = document.getElementById('status');
+            el.innerText = message;
+            el.className = type; // Apply class (error, success, warning)
+            el.classList.remove("hidden");
         }
     </script>
 </body>
