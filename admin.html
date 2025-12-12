@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fraud Ops Center</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #1a202c; color: white; margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748; padding-bottom: 20px; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 1.5rem; }
+        
+        table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #4a5568; }
+        th { background: #4a5568; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; }
+        
+        /* Status Colors */
+        .danger { color: #fc8181; font-weight: bold; background: rgba(252, 129, 129, 0.1); }
+        .warning { color: #f6ad55; font-weight: bold; background: rgba(246, 173, 85, 0.1); }
+        .safe { color: #68d391; font-weight: bold; }
+        
+        .live-badge { background: #e53e3e; padding: 5px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🛡️ Security Operations Center</h1>
+        <div class="live-badge">LIVE FEED</div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Time (IRL)</th>
+                <th>User Identity</th>
+                <th>GPS Location</th>
+                <th>Shift (Distance)</th>
+                <th>Risk Score</th>
+                <th>AI Decision</th>
+            </tr>
+        </thead>
+        <tbody id="log-table">
+            <tr><td colspan="6" style="text-align:center; color: #a0aec0;">Waiting for activity...</td></tr>
+        </tbody>
+    </table>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/admin/data');
+                const data = await res.json();
+                const logs = data.logs;
+                const tbody = document.getElementById('log-table');
+
+                if (logs.length === 0) return;
+
+                tbody.innerHTML = ''; // Clear table
+
+                logs.forEach(log => {
+                    const row = document.createElement('tr');
+                    
+                    // Style row based on status
+                    if (log.status === 'danger') row.style.backgroundColor = 'rgba(229, 62, 62, 0.1)';
+                    if (log.status === 'warning') row.style.backgroundColor = 'rgba(221, 107, 32, 0.1)';
+
+                    row.innerHTML = `
+                        <td style="color: #a0aec0;">${log.time}</td>
+                        <td style="font-weight:bold;">${log.user}</td>
+                        <td>${log.location}</td>
+                        <td>${log.distance}</td>
+                        <td class="${log.status}">${log.risk}</td>
+                        <td class="${log.status}">${log.action}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (e) {
+                console.error("Fetch error:", e);
+            }
+        }
+
+        // Auto-refresh every 2 seconds
+        setInterval(fetchLogs, 2000);
+        fetchLogs(); // Initial call
+    </script>
+</body>
+</html>
