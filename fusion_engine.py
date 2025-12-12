@@ -4,56 +4,51 @@ import pickle
 class FusionEngine:
     def __init__(self, fusion_model=None):
         self.model = fusion_model
-        # This threshold determines when we switch from "Challenge" to "Block"
-        # in the absence of a Veto trigger.
-        self.RISK_THRESHOLD = 0.5 
 
     def run_assessment(self, detector_scores: dict) -> dict:
         """
-        Aggregates scores using ML or Fallback Logic and applies Veto Rules.
+        Aggregates scores and applies specific rules for Block vs Mail.
         """
         
-        # --- 1. PREPARE DATA ---
-        # Extract scores safely
-        s1 = detector_scores.get('A1_Behavior_DNA', 0.0)
-        s2 = detector_scores.get('A2_Geo_Velocity', 0.0)
-        s3 = detector_scores.get('A3_OTP_Misuse', 0.0)
+        # Extract scores (default to 0.0 if missing)
+        s1_behavior = detector_scores.get('A1_Behavior_DNA', 0.0)
+        s2_geo = detector_scores.get('A2_Geo_Velocity', 0.0)
+        s3_otp = detector_scores.get('A3_OTP_Misuse', 0.0)
         
-        features = np.array([[s1, s2, s3]])
-
-        # --- 2. VETO RULE (The "Best Logic" Requirement) ---
-        # If any single detector is absolutely certain of fraud (> 0.9),
-        # we block immediately. No average can save it.
-        if max([s1, s2, s3]) >= 0.9:
+        # --- RULE 1: CRITICAL BLOCKS (Travel & Bot) ---
+        # If physically impossible travel OR brute force OTP -> IMMEDIATE BLOCK
+        if s2_geo > 0.9:
             return {
-                'final_risk_score': float(max([s1, s2, s3])),
-                'action': "🚫 BLOCK ACCESS (Veto Triggered)"
+                'final_risk_score': float(s2_geo),
+                'action': "🚫 BLOCK: Impossible Travel Detected"
+            }
+        
+        if s3_otp > 0.9:
+            return {
+                'final_risk_score': float(s3_otp),
+                'action': "🚫 BLOCK: OTP Brute Force Detected"
             }
 
-        # --- 3. FUSION LOGIC (ML or Weighted Average) ---
-        risk_score = 0.0
-        
-        if self.model:
-            try:
-                # Use the loaded Machine Learning model
-                # The model learned how to weigh these 3 factors during training
-                risk_score = self.model.predict_proba(features)[:, 1][0]
-            except Exception as e:
-                print(f"Model prediction failed: {e}. Using fallback.")
-                # Fallback: Weighted Average
-                # (Behavior: 20%, Geo: 40%, OTP: 40%)
-                risk_score = (s1 * 0.2) + (s2 * 0.4) + (s3 * 0.4)
-        else:
-            # Fallback if no model exists
-            risk_score = (s1 * 0.2) + (s2 * 0.4) + (s3 * 0.4)
+        # --- RULE 2: IMPERSONATION (Behavior) ---
+        # If behavior is anomalous (Impersonation), but Geo/OTP are okay -> SEND MAIL
+        # We check if Behavior is High (> 0.8)
+        if s1_behavior > 0.8:
+            return {
+                'final_risk_score': float(s1_behavior),
+                'action': "📧 ACTION: Impersonation Suspected - Email Sent"
+            }
 
-        # --- 4. FINAL DECISION ---
-        if risk_score > 0.80:
-            action = "🚫 BLOCK ACCESS (High Risk)"
-        elif risk_score > 0.40:
-            action = "⚠️ FLAG & CHALLENGE (Suspicious)"
+        # --- RULE 3: NORMAL AGGREGATION ---
+        # If no specific rule triggered, calculate weighted risk
+        # Weights: Behavior(20%), Geo(40%), OTP(40%)
+        risk_score = (s1_behavior * 0.2) + (s2_geo * 0.4) + (s3_otp * 0.4)
+
+        if risk_score > 0.85:
+            action = "🚫 BLOCK ACCESS (High Aggregated Risk)"
+        elif risk_score > 0.5:
+            action = "⚠️ FLAG: Verify Identity"
         else:
-            action = "✅ ALLOW ACCESS (Safe)"
+            action = "✅ ALLOW ACCESS"
             
         return {
             'final_risk_score': float(risk_score),

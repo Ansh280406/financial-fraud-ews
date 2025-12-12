@@ -12,54 +12,41 @@ from detectors import GeoVelocityCheck, BehaviorCheck, OTPCheck
 # --- CONFIGURATION ---
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# --- LOAD ML MODEL ---
-fusion_model = None
-try:
-    model_path = os.path.join(PROJECT_DIR, 'fraud_model.pkl')
-    if os.path.exists(model_path):
-        with open(model_path, 'rb') as f:
-            fusion_model = pickle.load(f)
-except Exception:
-    print("Warning: Model not found. Fusion Engine will use logic fallback.")
-
 # --- INITIALIZE ENGINES ---
-# We instantiate the detector classes so we can use their logic
 geo_engine = GeoVelocityCheck()
 behavior_engine = BehaviorCheck()
 otp_engine = OTPCheck()
-fusion_engine = FusionEngine(fusion_model=fusion_model)
+fusion_engine = FusionEngine() # No model needed for rule-based logic
 
-# --- MOCK DATABASE (SCENARIOS) ---
-# Instead of hardcoded scores, we define "Contexts" (Raw Data)
-# This simulates what we would fetch from a database for that user.
+# --- MOCK SCENARIOS (Tuned for your request) ---
 SCENARIO_CONTEXTS = {
+    # CASE 1: Normal User -> Allow
     "demo_user": {
-        "prev_loc": (40.7128, -74.0060), # New York
-        "curr_loc": (40.7306, -73.9352), # New York (Queens) - Close
-        "time_diff": 2.0,                # 2 hours later
-        "typing_delay": 120,             # 120ms (Normal human)
-        "failed_otps": 0                 # No failures
-    },
-    "demo_travel": {
-        "prev_loc": (40.7128, -74.0060), # New York
-        "curr_loc": (35.6762, 139.6503), # Tokyo - VERY Far
-        "time_diff": 1.0,                # 1 hour later (Impossible!)
-        "typing_delay": 110,             # Normal typing
+        "prev_loc": (40.7128, -74.0060), "curr_loc": (40.7128, -74.0060), # Same place
+        "time_diff": 1.0, 
+        "typing_delay": 150, # Normal speed
         "failed_otps": 0
     },
-    "demo_otp": {
-        "prev_loc": (40.7128, -74.0060),
-        "curr_loc": (40.7128, -74.0060), # Same location
-        "time_diff": 24.0,
-        "typing_delay": 100,
-        "failed_otps": 3                 # 3 Failures (Bot attack!)
+    # CASE 2: Impossible Travel -> Block
+    "demo_travel": {
+        "prev_loc": (40.7128, -74.0060), "curr_loc": (51.5074, -0.1278), # NY to London
+        "time_diff": 2.0, # 2 hours (Impossible!)
+        "typing_delay": 150,
+        "failed_otps": 0
     },
+    # CASE 3: OTP Script -> Block
+    "demo_otp": {
+        "prev_loc": (40.7128, -74.0060), "curr_loc": (40.7128, -74.0060),
+        "time_diff": 1.0,
+        "typing_delay": 150,
+        "failed_otps": 5 # 5 Failures (Attack)
+    },
+    # CASE 4: Impersonation -> Send Mail
     "demo_impersonation": {
-        "prev_loc": (40.7128, -74.0060),
-        "curr_loc": (34.0522, -118.2437), # Los Angeles
-        "time_diff": 5.0,                 # 5 hours (Borderline possible by fast jet)
-        "typing_delay": 10,               # 10ms (Super fast script/bot)
-        "failed_otps": 1
+        "prev_loc": (40.7128, -74.0060), "curr_loc": (40.7128, -74.0060),
+        "time_diff": 1.0,
+        "typing_delay": 10, # 10ms (Inhuman speed/Bot script impersonation)
+        "failed_otps": 0
     }
 }
 
@@ -86,24 +73,14 @@ async def serve_index():
 async def predict_fraud(login_attempt: LoginAttempt):
     user_id = login_attempt.user_id
     
-    # 1. Fetch User Context (Simulating DB Lookup)
     if user_id not in SCENARIO_CONTEXTS:
         raise HTTPException(status_code=404, detail="User Scenario Not Found")
         
     ctx = SCENARIO_CONTEXTS[user_id]
     
-    # 2. RUN DETECTORS (Real Calculation)
-    # A1: Behavior Check
+    # Run Detectors
     score_behavior = behavior_engine.get_risk(ctx['typing_delay'])
-    
-    # A2: Geo-Velocity Check
-    score_geo = geo_engine.get_risk(
-        ctx['curr_loc'], 
-        ctx['prev_loc'], 
-        ctx['time_diff']
-    )
-    
-    # A3: OTP Check
+    score_geo = geo_engine.get_risk(ctx['curr_loc'], ctx['prev_loc'], ctx['time_diff'])
     score_otp = otp_engine.get_risk(ctx['failed_otps'])
     
     detector_results = {
@@ -112,7 +89,7 @@ async def predict_fraud(login_attempt: LoginAttempt):
         "A3_OTP_Misuse": score_otp
     }
     
-    # 3. RUN FUSION ENGINE
+    # Run Fusion Logic
     final_result = fusion_engine.run_assessment(detector_results)
     
     return {
