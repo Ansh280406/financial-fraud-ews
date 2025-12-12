@@ -1,17 +1,39 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-import json
 import os
 import pickle
 
 from .models import LoginAttempt
 from .fusion_engine import FusionEngine
-from .detectors import load_detectors
+# from .detectors import GeoVelocityCheck, BehaviorCheck, OTPCheck # NOT CURRENTLY USED, BUT KEEPS IMPORT STRUCTURE
 
 # --- Configuration ---
-# Set the project directory for relative file loading
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 💡 SIMPLIFIED FIX: Hardcoded Simulated Detector Scores
+SIMULATED_DETECTOR_SCORES = {
+    "demo_user": {
+        "A1_Behavior_DNA": 0.15,
+        "A2_Geo_Velocity": 0.05,
+        "A3_OTP_Misuse": 0.02
+    },
+    "demo_travel": {
+        "A1_Behavior_DNA": 0.25,
+        "A2_Geo_Velocity": 0.95,
+        "A3_OTP_Misuse": 0.10
+    },
+    "demo_otp": {
+        "A1_Behavior_DNA": 0.80,
+        "A2_Geo_Velocity": 0.15,
+        "A3_OTP_Misuse": 0.75
+    },
+    "demo_impersonation": {
+        "A1_Behavior_DNA": 0.90,
+        "A2_Geo_Velocity": 0.50,
+        "A3_OTP_Misuse": 0.30
+    }
+}
 
 # Load the Fusion Model
 try:
@@ -21,16 +43,8 @@ except FileNotFoundError:
     print("Warning: 'fraud_model.pkl' not found. FusionEngine initialized without model.")
     fusion_model = None
 
-# Load the Detector Scores (simulated data)
-try:
-    # Use the absolute path to load the JSON file
-    detector_scores = load_detectors(os.path.join(PROJECT_DIR, 'detector_scores.json'))
-except FileNotFoundError:
-    print("Error: 'detector_scores.json' not found. Cannot load detector data.")
-    detector_scores = {}
-
-# Initialize the Fusion Engine with the loaded model and detector scores
-fusion_engine = FusionEngine(fusion_model=fusion_model, detector_scores=detector_scores)
+# Initialize the Fusion Engine with the loaded model and the hardcoded scores
+fusion_engine = FusionEngine(fusion_model=fusion_model, detector_scores=SIMULATED_DETECTOR_SCORES)
 
 # --- FastAPI Setup ---
 app = FastAPI(
@@ -38,21 +52,14 @@ app = FastAPI(
     description="Early Warning System for Fraud Detection using ML Fusion Engine."
 )
 
-# --- CORS Configuration (The critical fix) ---
-# Allow all origins for the prototype to work correctly with Render.
-# For production, replace "*" with your specific Render URL: "https://financial-fraud-ews.onrender.com"
-origins = [
-    "*",
-    "http://localhost",
-    "http://localhost:8000",
-    "https://financial-fraud-ews.onrender.com"
-]
+# --- CORS Configuration (The required FIX for frontend/backend communication) ---
+origins = ["*"] 
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows POST requests
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -76,7 +83,7 @@ async def predict_fraud(login_attempt: LoginAttempt):
     """
     user_id = login_attempt.user_id
     
-    # 1. Get detector scores for the user_id (simulated)
+    # 1. Get detector scores for the user_id (simulated from hardcoded dictionary)
     if user_id not in fusion_engine.detector_scores:
         raise HTTPException(
             status_code=404, 
