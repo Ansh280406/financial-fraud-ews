@@ -2,113 +2,119 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Real-Time Fraud Guard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Detection Prototype</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #e2e8f0; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; text-align: center; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e0; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        button:hover { background: #2b6cb0; }
-        #status { margin-top: 20px; padding: 10px; border-radius: 6px; font-weight: bold; display: none; }
-        .error { background: #fed7d7; color: #c53030; }
-        .success { background: #c6f6d5; color: #2f855a; }
-        .warning { background: #feebc8; color: #b7791f; }
-        .sensor-data { font-size: 0.8rem; color: #718096; margin-top: 15px; text-align: left; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .dashboard { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 450px; text-align: center; }
+        h1 { color: #1a202c; font-size: 1.6rem; margin-bottom: 0.5rem; }
+        .subtitle { font-size: 0.9rem; color: #718096; margin-bottom: 1.5rem; }
+        .scenarios { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
+        button { padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: transform 0.1s; font-size: 0.9rem; }
+        button:active { transform: scale(0.98); }
+        .btn-safe { background-color: #e6fffa; color: #2c7a7b; border: 1px solid #b2f5ea; }
+        .btn-risk { background-color: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
+        .btn-travel { background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; }
+        #result-box { display: none; margin-top: 20px; text-align: left; background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #eee; }
+        .score-display { font-size: 3rem; font-weight: bold; text-align: center; margin: 5px 0 15px 0; }
+        .safe { color: #38a169; } .danger { color: #e53e3e; }
+        .badge { display: inline-block; padding: 6px 12px; border-radius: 4px; font-size: 0.9rem; font-weight: bold; width: 100%; text-align: center; }
+        .detail-row { display: flex; justify-content: space-between; margin-bottom: 8px; border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>🏦 Secure Login</h2>
-        <p style="color:#718096; font-size:0.9rem;">AI is analyzing your behavior & location.</p>
+
+    <div class="dashboard">
+        <h1>🛡️ Security Center</h1>
+        <p class="subtitle">Select a scenario to test Real Logic Calculation</p>
         
-        <input type="text" id="username" placeholder="Username (Try: demo_user)">
-        <input type="password" id="password" placeholder="Password" onkeyup="measureTyping()">
-        
-        <button onclick="attemptLogin()">Log In</button>
-        
-        <div class="sensor-data">
-            <div>⌨️ Typing Delay: <span id="disp-typing">0</span> ms</div>
-            <div>🌍 Location: <span id="disp-loc">Detecting...</span></div>
+        <div class="scenarios">
+            <button class="btn-safe" onclick="testLogin('demo_user')">✅ Normal User</button>
+            <button class="btn-travel" onclick="testLogin('demo_travel')">✈️ Impossible Travel</button>
+            <button class="btn-risk" onclick="testLogin('demo_otp')">🤖 OTP Attack</button>
+            <button class="btn-risk" onclick="testLogin('demo_impersonation')">🎭 Impersonation</button>
         </div>
 
-        <div id="status"></div>
+        <div id="result-box">
+            <div style="text-align: center; font-size: 0.8rem; color: #718096;">RISK SCORE</div>
+            <div id="risk-score" class="score-display">-</div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <span id="action-badge" class="badge">-</span>
+            </div>
+            <div class="details">
+                <div class="detail-row"><span>🧠 Behavior:</span> <strong id="score-a1">-</strong></div>
+                <div class="detail-row"><span>🌍 Geo-Velocity:</span> <strong id="score-a2">-</strong></div>
+                <div class="detail-row"><span>📲 OTP Check:</span> <strong id="score-a3">-</strong></div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // --- SENSOR VARIABLES ---
-        let lastKeyTime = 0;
-        let delays = [];
-        let userLat = 0.0;
-        let userLon = 0.0;
-
-        // 1. Get Real Location immediately
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    userLat = pos.coords.latitude;
-                    userLon = pos.coords.longitude;
-                    document.getElementById('disp-loc').innerText = `${userLat.toFixed(2)}, ${userLon.toFixed(2)}`;
-                },
-                (err) => {
-                    document.getElementById('disp-loc').innerText = "Blocked/Unknown (Using 0,0)";
-                }
-            );
-        }
-
-        // 2. Measure Typing Speed (Keystroke Dynamics)
-        function measureTyping() {
-            const now = Date.now();
-            if (lastKeyTime !== 0) {
-                const diff = now - lastKeyTime;
-                delays.push(diff);
-                // Update UI average
-                const avg = Math.round(delays.reduce((a,b)=>a+b,0) / delays.length);
-                document.getElementById('disp-typing').innerText = avg;
-            }
-            lastKeyTime = now;
-        }
-
-        // 3. Send to AI
-        async function attemptLogin() {
-            const user = document.getElementById('username').value;
-            const pass = document.getElementById('password').value;
-            const status = document.getElementById('status');
-            
-            // Calculate Average Delay (Default 0 for bots/paste)
-            let avgDelay = 0;
-            if (delays.length > 0) {
-                avgDelay = delays.reduce((a, b) => a + b, 0) / delays.length;
-            }
-
-            status.style.display = 'block';
-            status.innerText = "🔄 Processing with AI Fusion...";
-            status.className = "warning";
+        async function testLogin(scenario) {
+            const resultBox = document.getElementById('result-box');
+            resultBox.style.display = 'block';
+            resultBox.style.opacity = '0.5';
 
             try {
-                const res = await fetch('/predict', {
+                // DEFINE SENSOR DATA FOR SIMULATION
+                let payload = {
+                    user_id: scenario,
+                    password: "password123",
+                    device_fingerprint: "sim_device",
+                    latitude: 40.7128,  // Default NY
+                    longitude: -74.0060,
+                    typing_delay: 150   // Default Normal
+                };
+
+                // 1. IMPOSSIBLE TRAVEL: Send London Coords (Backend has NY history)
+                if (scenario === 'demo_travel') {
+                    payload.latitude = 51.5074; 
+                    payload.longitude = -0.1278; 
+                }
+                // 2. IMPERSONATION: Send Fast Typing (Bot speed)
+                else if (scenario === 'demo_impersonation') {
+                    payload.typing_delay = 10; 
+                }
+                
+                // 3. OTP ATTACK: Handled by Backend History (failed_otps=5)
+
+                const response = await fetch('/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: user,
-                        password: pass,
-                        latitude: userLat,
-                        longitude: userLon,
-                        typing_delay: avgDelay,
-                        device_fingerprint: "browser_v1"
-                    })
+                    body: JSON.stringify(payload)
                 });
 
-                const data = await res.json();
-                
-                status.innerText = `${data.security_action}`;
-                
-                if (data.security_action.includes("BLOCK")) status.className = "error";
-                else if (data.security_action.includes("ALLOW")) status.className = "success";
-                else status.className = "warning";
+                const data = await response.json();
 
-            } catch (e) {
-                status.innerText = "Error: " + e.message;
-                status.className = "error";
+                // UI UPDATE
+                const score = data.final_risk_score;
+                const scoreEl = document.getElementById('risk-score');
+                const badgeEl = document.getElementById('action-badge');
+
+                scoreEl.innerText = (score * 100).toFixed(0) + "%";
+                badgeEl.innerText = data.security_action;
+
+                // Colors
+                if (data.security_action.includes("BLOCK")) {
+                    scoreEl.className = "score-display danger";
+                    badgeEl.style.backgroundColor = "#fed7d7"; badgeEl.style.color = "#c53030";
+                } else if (data.security_action.includes("Email") || data.security_action.includes("FLAG")) {
+                    scoreEl.className = "score-display";
+                    scoreEl.style.color = "#d69e2e";
+                    badgeEl.style.backgroundColor = "#fefcbf"; badgeEl.style.color = "#b7791f";
+                } else {
+                    scoreEl.className = "score-display safe";
+                    badgeEl.style.backgroundColor = "#c6f6d5"; badgeEl.style.color = "#2f855a";
+                }
+
+                document.getElementById('score-a1').innerText = data.detector_scores.A1_Behavior_DNA.toFixed(2);
+                document.getElementById('score-a2').innerText = data.detector_scores.A2_Geo_Velocity.toFixed(2);
+                document.getElementById('score-a3').innerText = data.detector_scores.A3_OTP_Misuse.toFixed(2);
+
+            } catch (error) {
+                alert("Error: " + error.message);
+            } finally {
+                resultBox.style.opacity = '1';
             }
         }
     </script>
