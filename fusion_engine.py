@@ -1,57 +1,65 @@
-    # fusion_engine.py
+import numpy as np
+import pickle
 
-# --- CONFIGURATION ---
-# These are the "Weights" for your formula.
-# w1 (Behavior) is 0.5 because impersonation is the hardest to catch.
-WEIGHTS = {
-    "w1_behavior": 0.5,
-    "w2_geo_velocity": 0.3,
-    "w3_otp_misuse": 0.2
-}
+class FusionEngine:
+    def __init__(self, fusion_model=None, detector_scores=None):
+        """
+        Initializes the Fusion Engine with the trained model and simulated detector scores.
+        """
+        self.model = fusion_model
+        self.detector_scores = detector_scores if detector_scores is not None else {}
+        self.RISK_THRESHOLD = 0.5  # Default threshold for blocking/flagging
 
-# This table acts like a traffic light for security actions.
-DECISION_MAPPING = [
-    {"max_score": 0.3, "action": "Allow login", "level": "Safe"},
-    {"max_score": 0.6, "action": "Silent logging + monitoring", "level": "Low Risk"},
-    {"max_score": 0.8, "action": "Alerts user to verify activity", "level": "Suspicious"},
-    {"max_score": 1.0, "action": "Block + force 2FA", "level": "High Risk"}
-]
+    def _get_weighted_features(self, scores: dict) -> np.ndarray:
+        """
+        Converts detector scores into a feature vector for the ML model.
+        Order of features must match the model training (A1, A2, A3).
+        """
+        try:
+            features = np.array([
+                scores['A1_Behavior_DNA'],
+                scores['A2_Geo_Velocity'],
+                scores['A3_OTP_Misuse']
+            ]).reshape(1, -1)
+            return features
+        except KeyError as e:
+            raise ValueError(f"Missing required detector score: {e}")
 
-# --- LOGIC FUNCTIONS ---
+    def run_assessment(self, user_id: str, detector_scores: dict) -> dict:
+        """
+        Runs the full risk assessment pipeline.
+        """
+        
+        # 1. Prepare features
+        try:
+            features = self._get_weighted_features(detector_scores)
+        except ValueError as e:
+            return {
+                'final_risk_score': 0.0,
+                'action': f"ERROR: {e}",
+            }
 
-def calculate_final_risk(a1: float, a2: float, a3: float) -> float:
-    """
-    Combines the three scores into one Final Risk Score.
-    
-    Includes a 'VETO RULE': 
-    If any single detector screams danger (> 0.9), we ignore the average
-    and force a high risk score immediately.
-    """
-    
-    # 1. Calculate the Standard Weighted Average
-    weighted_avg = (
-        WEIGHTS["w1_behavior"] * a1 +
-        WEIGHTS["w2_geo_velocity"] * a2 +
-        WEIGHTS["w3_otp_misuse"] * a3
-    )
-
-    # 2. THE VETO RULE (Critical Security Update)
-    # If Behavior OR Location OR OTP is extremely suspicious...
-    if a1 >= 0.9 or a2 >= 0.9 or a3 >= 0.9:
-        # ...we override the average and force a Block (0.95 or higher)
-        return max(weighted_avg, 0.95)
-
-    # Otherwise, return the normal weighted average
-    return min(weighted_avg, 1.0)
-
-
-def get_security_action(final_risk_score: float) -> dict:
-    """
-    Looks at the Final Risk Score and returns the correct Action from the table.
-    """
-    for rule in DECISION_MAPPING:
-        if final_risk_score <= rule["max_score"]:
-            return rule
+        # 2. ML Model Prediction (If model is loaded)
+        if self.model:
+            # Predict probability of fraud (P(Fraud=1))
+            try:
+                risk_score = self.model.predict_proba(features)[:, 1][0]
+            except Exception:
+                # Fallback if model prediction fails
+                risk_score = features.mean()
+        else:
+            # Fallback to simple averaging if model is missing
+            risk_score = features.mean() 
             
-    # Safety net: If something goes wrong, block it.
-    return {"action": "Block + force 2FA", "level": "Critical Risk"}
+        # 3. Decision Logic
+        if risk_score > 0.85:
+            action = "🚫 BLOCK ACCESS (High Risk)"
+        elif risk_score > self.RISK_THRESHOLD:
+            action = "⚠️ FLAG & CHALLENGE (Medium Risk)"
+        else:
+            action = "✅ ALLOW ACCESS (Low Risk)"
+            
+        return {
+            'final_risk_score': float(risk_score),
+            'action': action,
+        }

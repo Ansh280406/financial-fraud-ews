@@ -1,5 +1,4 @@
 import math
-import joblib
 import numpy as np
 import os
 from datetime import datetime
@@ -17,39 +16,39 @@ class GeoVelocityCheck:
         return R * c
 
     def get_risk(self, current_lat, current_lon, history):
-        if not history or history['last_lat'] == 0: return 0.0
+        if not history or history.get('last_lat') == 0: return 0.0
         
+        # Simple date parsing fallback
+        try:
+            last_login_dt = datetime.fromisoformat(history['last_login'])
+        except:
+            return 0.0
+
         dist = self.calculate_haversine(history['last_lat'], history['last_lon'], current_lat, current_lon)
-        hours_diff = (datetime.now() - history['last_login']).total_seconds() / 3600.0
+        hours_diff = (datetime.now() - last_login_dt).total_seconds() / 3600.0
         
-        if hours_diff <= 0: hours_diff = 0.001 # Prevent div by zero
+        if hours_diff <= 0: hours_diff = 0.001 
         speed = dist / hours_diff
         
-        if speed > self.MAX_SPEED_KMH: return 1.0 # Impossible Travel
+        if speed > self.MAX_SPEED_KMH: return 1.0 
         return 0.0
 
 # 2. BEHAVIOR AI (Keystroke Dynamics)
 class BehaviorCheck:
     def __init__(self):
         self.model = None
-        if os.path.exists("fraud_model.pkl"):
-            self.model = joblib.load("fraud_model.pkl")
 
     def get_risk(self, keystroke_delay):
-        if not self.model: return 0.0
-        # AI Prediction (-1 is Anomaly)
-        pred = self.model.predict([[keystroke_delay]])[0]
-        return 1.0 if pred == -1 else 0.0
+        return 0.0
 
 # 3. OTP BOT CHECK (Rate Limiting)
 class OTPCheck:
     def __init__(self):
-        self.attempts = {} # In-memory store (Use Redis in prod)
+        self.attempts = {} 
 
     def check_flood(self, user_id):
-        # Allow max 3 attempts
         count = self.attempts.get(user_id, 0)
-        if count >= 3: return True # Blocked
+        if count >= 3: return True 
         self.attempts[user_id] = count + 1
         return False
         
