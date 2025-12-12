@@ -1,14 +1,17 @@
 from pydantic import BaseModel
-from typing import Optional
 
 class LoginAttempt(BaseModel):
-    user_id: str
+    email: str          # Changed from user_id to email
     password: str
-    latitude: float  # Real GPS Lat
-    longitude: float # Real GPS Lon
-    typing_delay: float # Real Avg Delay (ms)
+    latitude: float
+    longitude: float
+    typing_delay: float
     device_fingerprint: str
-    
+
+class OTPVerification(BaseModel):
+    email: str
+    otp_code: str
+
 class RiskAssessment(BaseModel):
     final_risk_score: float
     security_action: str

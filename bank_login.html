@@ -6,16 +6,13 @@
     <title>Global Secure Bank - Login</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #e0e5ec; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .container { width: 400px; perspective: 1000px; }
-        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; position: relative; }
+        .container { width: 400px; }
+        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
         button { width: 100%; padding: 12px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #2b6cb0; }
         .hidden { display: none; }
-        .status-msg { margin-top: 20px; padding: 10px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; }
-        .error { background: #fed7d7; color: #9b2c2c; }
-        .success { background: #c6f6d5; color: #276749; }
-        .warning { background: #feebc8; color: #9c4221; }
+        .status-msg { margin-top: 20px; padding: 10px; border-radius: 6px; font-weight: 600; }
+        .error { background: #fed7d7; color: #9b2c2c; } .warning { background: #feebc8; color: #9c4221; }
     </style>
 </head>
 <body>
@@ -24,22 +21,18 @@
         <div id="view-login" class="card">
             <h2>Global Bank</h2>
             <div id="login-fields">
-                <input type="text" id="username" placeholder="Username">
+                <input type="email" id="email" placeholder="Email Address (e.g. name@gmail.com)">
                 <input type="password" id="password" placeholder="Password" onkeyup="trackTyping()">
-                <div style="text-align: left; font-size: 0.8rem; color: #718096; margin: 5px 0;">
-                    📍 Location: <span id="loc-status">Requesting...</span>
-                </div>
+                <div style="font-size: 0.8rem; color: #718096; text-align: left; margin: 5px 0;">📍 Location: <span id="loc-status">Checking...</span></div>
                 <button id="btn-login" onclick="attemptLogin()">Log In</button>
             </div>
             <div id="login-status" class="hidden status-msg"></div>
         </div>
 
         <div id="view-otp" class="card hidden">
-            <h2 id="otp-header">🔒 2FA Required</h2>
-            <p id="otp-sub" style="font-size: 0.9rem; color: #4a5568;">Standard security check.</p>
-            <p style="font-size: 0.85rem; color: #718096; margin-bottom: 15px;">Enter code ending in **88</p>
-            
-            <input type="text" id="otp-code" placeholder="Enter OTP (1234)" maxlength="4" style="text-align: center; letter-spacing: 5px; font-size: 1.2rem;">
+            <h2 id="otp-header">🔒 Verify Email</h2>
+            <p style="font-size: 0.9rem; color: #4a5568;">We sent a code to your email.</p>
+            <input type="text" id="otp-code" placeholder="Enter 4-Digit Code" maxlength="4" style="text-align: center; letter-spacing: 5px; font-size: 1.2rem;">
             <button onclick="verifyOtp()">Verify Code</button>
             <div id="otp-status" class="hidden status-msg"></div>
         </div>
@@ -53,35 +46,29 @@
     </div>
 
     <script>
-        let keystrokes = [];
-        let lastKeyTime = 0;
-        let userLat = 0.0, userLon = 0.0;
-        let currentUser = ""; 
+        let keystrokes = []; let lastKeyTime = 0; let userLat = 0.0, userLon = 0.0; let currentEmail = ""; 
 
         window.onload = function() {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
-                    (pos) => { userLat = pos.coords.latitude; userLon = pos.coords.longitude; document.getElementById('loc-status').innerText = "✅ Acquired"; document.getElementById('loc-status').style.color = "green"; },
-                    (err) => { document.getElementById('loc-status').innerText = "❌ Denied"; document.getElementById('loc-status').style.color = "red"; }
+                    (pos) => { userLat = pos.coords.latitude; userLon = pos.coords.longitude; document.getElementById('loc-status').innerText = "✅ Acquired"; },
+                    (err) => { document.getElementById('loc-status').innerText = "❌ Denied"; }
                 );
             }
         };
 
         function trackTyping() {
-            const now = Date.now();
-            if (lastKeyTime !== 0) keystrokes.push(now - lastKeyTime);
-            lastKeyTime = now;
+            const now = Date.now(); if (lastKeyTime !== 0) keystrokes.push(now - lastKeyTime); lastKeyTime = now;
         }
 
         async function attemptLogin() {
-            const user = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
             const pass = document.getElementById('password').value;
             const statusEl = document.getElementById('login-status');
-            currentUser = user; 
+            currentEmail = email;
 
-            if (pass !== "password123") {
-                showMsg(statusEl, "Incorrect Password", "error"); return;
-            }
+            if (pass !== "password123") { showMsg(statusEl, "Incorrect Password", "error"); return; }
+            if (!email.includes("@")) { showMsg(statusEl, "Invalid Email", "error"); return; }
 
             statusEl.innerText = "Processing..."; statusEl.className = "status-msg warning"; statusEl.classList.remove('hidden');
 
@@ -92,35 +79,19 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        user_id: user, password: pass, latitude: userLat, longitude: userLon,
+                        email: email, password: pass, latitude: userLat, longitude: userLon,
                         typing_delay: avgDelay, device_fingerprint: navigator.userAgent
                     })
                 });
                 const data = await res.json();
                 
-                // IF BLOCKED -> Show Error
                 if (data.security_action.includes("BLOCK")) {
                     showMsg(statusEl, data.security_action, "error");
-                
-                } 
-                // IF SAFE OR WARNING -> Show OTP (Mandatory for everyone)
-                else {
-                    // Customize Message based on Risk
-                    const header = document.getElementById('otp-header');
-                    const sub = document.getElementById('otp-sub');
-
-                    if (data.security_action.includes("Email") || data.security_action.includes("FLAG")) {
-                        // High Risk Message
-                        header.innerText = "⚠️ Unusual Activity";
-                        sub.innerText = "Verification required due to suspicious behavior.";
-                        sub.style.color = "#c53030";
-                    } else {
-                        // Standard Message (Safe Users)
-                        header.innerText = "🔒 Two-Factor Auth";
-                        sub.innerText = "Please verify your identity.";
-                        sub.style.color = "#4a5568";
+                } else {
+                    // SUCCESS: Move to OTP
+                    if(data.security_action.includes("Email")) {
+                        document.getElementById('otp-header').innerText = "⚠️ Unusual Activity";
                     }
-
                     document.getElementById('view-login').classList.add('hidden');
                     document.getElementById('view-otp').classList.remove('hidden');
                 }
@@ -135,29 +106,21 @@
                 const res = await fetch('/verify-otp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: currentUser, otp_code: code })
+                    body: JSON.stringify({ email: currentEmail, otp_code: code })
                 });
                 const data = await res.json();
 
                 if (data.status === "success") {
-                    showDashboard();
-                } else if (data.status === "block") {
-                    // Blocked after 3 failed attempts
-                    showMsg(statusEl, data.message, "error");
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('view-otp').classList.add('hidden');
+                    document.getElementById('view-dashboard').classList.remove('hidden');
                 } else {
                     showMsg(statusEl, data.message, "error");
                 }
             } catch (e) { showMsg(statusEl, "Verification Error", "error"); }
         }
 
-        function showMsg(el, msg, type) {
-            el.innerText = msg; el.className = "status-msg " + type; el.classList.remove('hidden');
-        }
-        function showDashboard() {
-            document.getElementById('view-login').classList.add('hidden');
-            document.getElementById('view-otp').classList.add('hidden');
-            document.getElementById('view-dashboard').classList.remove('hidden');
-        }
+        function showMsg(el, msg, type) { el.innerText = msg; el.className = "status-msg " + type; el.classList.remove('hidden'); }
     </script>
 </body>
 </html>

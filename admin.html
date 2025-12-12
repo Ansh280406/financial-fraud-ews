@@ -10,32 +10,30 @@
         
         table { width: 100%; border-collapse: collapse; background: #2d3748; border-radius: 8px; overflow: hidden; }
         th, td { padding: 15px; text-align: left; border-bottom: 1px solid #4a5568; }
-        th { background: #4a5568; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; }
+        th { background: #4a5568; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; color: #a0aec0; }
         
-        /* Status Colors */
         .danger { color: #fc8181; font-weight: bold; background: rgba(252, 129, 129, 0.1); }
         .warning { color: #f6ad55; font-weight: bold; background: rgba(246, 173, 85, 0.1); }
         .safe { color: #68d391; font-weight: bold; }
         
-        .live-badge { background: #e53e3e; padding: 5px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        /* Highlight the OTP for easy copying */
+        .otp-code { font-family: 'Courier New', monospace; background: #2b6cb0; padding: 2px 6px; border-radius: 4px; color: white; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
     <div class="header">
         <h1>🛡️ Security Operations Center</h1>
-        <div class="live-badge">LIVE FEED</div>
+        <div style="font-size: 0.8rem; color: #a0aec0;">LIVE FEED • AUTO-REFRESHING</div>
     </div>
 
     <table>
         <thead>
             <tr>
-                <th>Time (IRL)</th>
-                <th>User Identity</th>
-                <th>GPS Location</th>
-                <th>Shift (Distance)</th>
-                <th>Risk Score</th>
+                <th>Time</th>
+                <th>User Email</th>
+                <th>Location</th>
+                <th>Generated OTP</th> <th>Risk</th>
                 <th>AI Decision</th>
             </tr>
         </thead>
@@ -54,33 +52,33 @@
 
                 if (logs.length === 0) return;
 
-                tbody.innerHTML = ''; // Clear table
+                tbody.innerHTML = ''; 
 
                 logs.forEach(log => {
                     const row = document.createElement('tr');
-                    
-                    // Style row based on status
                     if (log.status === 'danger') row.style.backgroundColor = 'rgba(229, 62, 62, 0.1)';
                     if (log.status === 'warning') row.style.backgroundColor = 'rgba(221, 107, 32, 0.1)';
+
+                    // Logic to show OTP pill only if valid
+                    let otpHtml = log.otp;
+                    if (log.otp && log.otp.length === 4) {
+                        otpHtml = `<span class="otp-code">${log.otp}</span>`;
+                    }
 
                     row.innerHTML = `
                         <td style="color: #a0aec0;">${log.time}</td>
                         <td style="font-weight:bold;">${log.user}</td>
                         <td>${log.location}</td>
-                        <td>${log.distance}</td>
+                        <td>${otpHtml}</td>
                         <td class="${log.status}">${log.risk}</td>
                         <td class="${log.status}">${log.action}</td>
                     `;
                     tbody.appendChild(row);
                 });
-            } catch (e) {
-                console.error("Fetch error:", e);
-            }
+            } catch (e) { console.error("Fetch error:", e); }
         }
-
-        // Auto-refresh every 2 seconds
         setInterval(fetchLogs, 2000);
-        fetchLogs(); // Initial call
+        fetchLogs(); 
     </script>
 </body>
 </html>
