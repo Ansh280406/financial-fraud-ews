@@ -4,14 +4,15 @@ from fastapi.responses import HTMLResponse
 import os
 import pickle
 
-from .models import LoginAttempt
-from .fusion_engine import FusionEngine
-# from .detectors import GeoVelocityCheck, BehaviorCheck, OTPCheck # NOT CURRENTLY USED, BUT KEEPS IMPORT STRUCTURE
+# 🚨 FINAL FIX: Changed relative imports (from .models) to absolute imports (from models)
+from models import LoginAttempt
+from fusion_engine import FusionEngine
+from detectors import GeoVelocityCheck, BehaviorCheck, OTPCheck # Kept for structure, though logic is simplified below
 
 # --- Configuration ---
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 💡 SIMPLIFIED FIX: Hardcoded Simulated Detector Scores
+# 💡 SIMPLIFIED FIX: Hardcoded Simulated Detector Scores (to avoid file dependency)
 SIMULATED_DETECTOR_SCORES = {
     "demo_user": {
         "A1_Behavior_DNA": 0.15,
