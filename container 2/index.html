@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Bank - Secure Login</title>
+    <style>
+        /* --- Styles --- */
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
+        .login-card { background: white; padding: 2.5rem; border-radius: 10px; width: 350px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; }
+        h2 { color: #2c3e50; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 1rem; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #cccccc; cursor: not-allowed; }
+        .status { margin-top: 15px; font-size: 0.9rem; font-weight: bold; min-height: 20px; }
+        .logo { font-size: 3rem; margin-bottom: 10px; }
+        .hint { font-size: 0.75rem; color: #888; margin-top: 10px; text-align: left; background: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px dashed #ccc; }
+
+        /* --- Warning Box Styles --- */
+        .security-alert {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+            display: none; 
+            text-align: left;
+        }
+        .security-alert.danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border-color: #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <div class="logo">🏦</div>
+        <h2>Global Bank</h2>
+
+        <!-- Security Warning Box -->
+        <div id="securityAlert" class="security-alert"></div>
+
+        <input type="text" id="username" placeholder="Username">
+        
+        <!-- Standard Password Input (Reliable) -->
+        <input type="password" id="password" placeholder="Password">
+        
+        <button id="loginBtn" onclick="attemptLogin()">Log In</button>
+        <div id="status" class="status"></div>
+
+        <div class="hint">
+            <strong>Demo Credentials:</strong><br>
+            • demo_user / password123<br>
+            • demo_travel / travel123<br>
+            • demo_otp / bot123<br>
+            • demo_impersonation / hacker123
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const MAX_ATTEMPTS = 10;
+        const BLOCK_TIME_MS = 10 * 60 * 1000; // 10 minutes
+
+        const validCreds = {
+            "demo_user": "password123",
+            "demo_travel": "travel123",
+            "demo_otp": "bot123",
+            "demo_impersonation": "hacker123"
+        };
+
+        // --- IN-MEMORY STATE (Resets on Refresh) ---
+        let attemptCount = 0;
+        let lockoutUntil = null;
+        let countdownInterval;
+
+        // --- VALIDATION & LOCKOUT LOGIC ---
+
+        function updateWarningUI() {
+            const alertBox = document.getElementById('securityAlert');
+            
+            // If currently locked, let the timer handle the UI
+            if (lockoutUntil) return;
+
+            if (attemptCount === 0) {
+                alertBox.style.display = 'none';
+                return;
+            }
+
+            const remaining = MAX_ATTEMPTS - attemptCount;
+            alertBox.style.display = 'block';
+            alertBox.className = 'security-alert';
+
+            if (remaining <= 3) {
+                alertBox.classList.add('danger');
+                alertBox.innerHTML = `⚠️ <strong>CRITICAL:</strong> Only ${remaining} attempts remaining.`;
+            } else {
+                alertBox.innerHTML = `⚠️ <strong>Warning:</strong> ${remaining} attempts remaining.`;
+            }
+        }
+
+        function startLockout() {
+            lockoutUntil = Date.now() + BLOCK_TIME_MS;
+            const alertBox = document.getElementById('securityAlert');
+            const btn = document.getElementById('loginBtn');
+            const statusEl = document.getElementById('status');
+
+            btn.disabled = true;
+            document.getElementById('username').disabled = true;
+            document.getElementById('password').disabled = true;
+            
+            alertBox.style.display = 'block';
+            alertBox.className = 'security-alert danger';
+            statusEl.innerText = "⛔ Access Denied";
+            statusEl.style.color = "red";
+
+            if (countdownInterval) clearInterval(countdownInterval);
+
+            // Update timer every second
+            countdownInterval = setInterval(() => {
+                const diff = lockoutUntil - Date.now();
+                if (diff <= 0) {
+                    clearLockout();
+                } else {
+                    const m = Math.floor(diff / 60000);
+                    const s = Math.floor((diff % 60000) / 1000);
+                    alertBox.innerHTML = `🚫 <strong>Maximum attempts exceeded.</strong><br>Blocked for: ${m}m ${s}s`;
+                }
+            }, 1000);
+        }
+
+        function clearLockout() {
+            clearInterval(countdownInterval);
+            lockoutUntil = null;
+            attemptCount = 0;
+            
+            const btn = document.getElementById('loginBtn');
+            btn.disabled = false;
+            document.getElementById('username').disabled = false;
+            document.getElementById('password').disabled = false;
+            
+            document.getElementById('securityAlert').style.display = 'none';
+            document.getElementById('status').innerText = "";
+        }
+
+        // --- MAIN LOGIN FUNCTION ---
+        async function attemptLogin() {
+            // 1. Check Lockout State (C3 Check)
+            if (lockoutUntil) return;
+
+            const statusEl = document.getElementById('status');
+            const userId = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value; // Get value directly from input
+
+            statusEl.innerText = "Verifying Credentials...";
+            statusEl.style.color = "blue";
+
+            // 2. Local Validation (C1 & C2)
+            
+            // C1: Invalid Username Check
+            // Note: We intentionally do NOT block IP or increment count for invalid usernames to prevent enumeration attacks/DoS.
+            if (!validCreds.hasOwnProperty(userId)) {
+                statusEl.innerText = "❌ Invalid Username";
+                statusEl.style.color = "red";
+                return; 
+            }
+
+            // C2: Invalid Credentials Check (Username exists, Password wrong)
+            if (validCreds[userId] !== password) {
+                attemptCount++;
+                statusEl.innerText = "❌ Invalid Credentials";
+                statusEl.style.color = "red";
+                
+                // C3: Block Logic Trigger
+                if (attemptCount >= MAX_ATTEMPTS) {
+                    startLockout();
+                } else {
+                    updateWarningUI();
+                }
+                return;
+            }
+
+            // If we get here, credentials are VALID locally.
+            // 3. Execute ORIGINAL Server Logic for Risk Analysis
+            
+            // Clear local failure warnings on success
+            attemptCount = 0; 
+            updateWarningUI();
+            
+            statusEl.innerText = "Analyzing Risk...";
+            
+            try {
+                // Determine scenario based on username (Legacy Logic)
+                let scenario = "normal_login";
+                if(userId.includes("travel")) scenario = "impossible_travel";
+                if(userId.includes("otp")) scenario = "otp_attack";
+                if(userId.includes("impersonation")) scenario = "impersonation";
+
+                const payload = {
+                    user_id: userId,
+                    password: password, 
+                    ip_address: "192.168.1.5", 
+                    device_fingerprint: "chrome_win10",
+                    scenario: scenario
+                };
+
+                const response = await fetch(`https://financial-fraud-ews.onrender.com/predict?scenario=${scenario}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("Server Error");
+
+                const data = await response.json();
+                const action = (data.security_action || "").toLowerCase();
+
+                // Handle Server Response
+                if (action.includes("allow")) {
+                    statusEl.innerText = "✅ Login Successful!";
+                    statusEl.style.color = "green";
+                } else if (action.includes("block")) {
+                    statusEl.innerText = "⛔ BLOCKED: Unusual Activity Detected";
+                    statusEl.style.color = "red";
+                } else if (action.includes("mfa") || action.includes("verify")) {
+                    statusEl.innerText = "⚠️ Verify: Check your email for code.";
+                    statusEl.style.color = "orange";
+                } else {
+                    statusEl.innerText = `⚠️ Status: ${data.security_action}`;
+                    statusEl.style.color = "grey";
+                }
+
+            } catch (error) {
+                statusEl.innerText = "❌ Connection Failed. (API might be sleeping)";
+                statusEl.style.color = "red";
+                console.error(error);
+            }
+        }
+        
+        // Clear inputs on load
+        window.onload = function() {
+            document.getElementById('username').value = "";
+            document.getElementById('password').value = "";
+        }
+    </script>
+</body>
+</html>

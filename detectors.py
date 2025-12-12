@@ -1,55 +1,88 @@
 # detectors.py
-import random
+import math
+from datetime import datetime
 
-# For the MVP (Prototype), we simulate the AI scores.
-# This allows you to demonstrate different attack scenarios to judges.
+# --- 1. GEO-VELOCITY DETECTOR ---
+class GeoVelocityCheck:
+    def __init__(self):
+        self.MAX_VELOCITY_KMH = 800.0 
 
-def get_detector_scores(scenario: str):
-    """
-    Returns (A1, A2, A3) based on the test scenario.
-    Ranges are 0.0 (Safe) to 1.0 (High Risk).
-    """
-    
-    # CASE 1: Normal User (Everything looks safe)
-    if scenario == "normal_login":
-        # A1 (Behavior): Low - Matches user history
-        a1 = random.uniform(0.1, 0.2)
-        # A2 (Geo): Low - Same city as yesterday
-        a2 = random.uniform(0.0, 0.1)
-        # A3 (OTP): Low - 1 request, 1 success
-        a3 = random.uniform(0.0, 0.1)
+    def calculate_haversine(self, lat1, lon1, lat2, lon2):
+        R = 6371  # Earth radius in km
+        d_lat = math.radians(lat2 - lat1)
+        d_lon = math.radians(lon2 - lon1)
+        a = (math.sin(d_lat / 2)**2 +
+             math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+             math.sin(d_lon / 2)**2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
 
-    # CASE 2: Impossible Travel (The "Jumper" Attack)
-    elif scenario == "impossible_travel":
-        # A1: Low - Device is correct
-        a1 = random.uniform(0.1, 0.2)
-        # A2: HIGH - IP is in Russia, 1 hour after login in India
-        a2 = random.uniform(0.9, 1.0) 
-        # A3: Low - OTP is correct
-        a3 = random.uniform(0.1, 0.2)
+    def get_score(self, current_data, history):
+        """
+        Returns a risk score (0.0 to 1.0) based on speed.
+        """
+        if not history or 'last_lat' not in history:
+            return 0.0  # First time login is safe
 
-    # CASE 3: Bot Attack / OTP Brute Force
-    elif scenario == "otp_attack":
-        # A1: Medium - Bot behavior
-        a1 = random.uniform(0.4, 0.6)
-        # A2: Low - IP is okay
-        a2 = random.uniform(0.1, 0.2)
-        # A3: HIGH - 10 failed OTP requests
-        a3 = random.uniform(0.85, 0.95)
+        # Calculate Distance
+        dist = self.calculate_haversine(
+            history['last_lat'], history['last_lon'],
+            current_data.latitude, current_data.longitude
+        )
 
-    # CASE 4: Account Takeover (Subtle Impersonation)
-    elif scenario == "impersonation":
-        # A1: HIGH - Wrong typing speed, new browser
-        a1 = random.uniform(0.8, 0.9) 
-        # A2: Medium - Different city but possible
-        a2 = random.uniform(0.4, 0.5)
-        # A3: Low
-        a3 = random.uniform(0.1, 0.2)
+        # Calculate Time Diff (Hours)
+        last_time = history.get('last_login_time', datetime.now())
+        time_diff = (datetime.now() - last_time).total_seconds() / 3600.0
 
-    else:
-        # Default: Random values if scenario is unknown
-        a1 = random.uniform(0.0, 0.5)
-        a2 = random.uniform(0.0, 0.5)
-        a3 = random.uniform(0.0, 0.5)
+        if time_diff <= 0: return 0.5 # Suspicious instant travel
 
-    return a1, a2, a3
+        velocity = dist / time_diff
+
+        # Logic: If speed > 800km/h -> High Risk (1.0)
+        if velocity > self.MAX_VELOCITY_KMH:
+            return 1.0
+        elif velocity > 200:
+            return 0.5
+        return 0.0
+
+# --- 2. OTP FRAUD DETECTOR ---
+class OTPFraudCheck:
+    def __init__(self):
+        self.MAX_FAILURES = 3
+
+    def get_score(self, current_data, history):
+        """
+        Returns risk based on failed attempts count.
+        """
+        failures = history.get('failed_otp_count', 0)
+        
+        if failures >= self.MAX_FAILURES:
+            return 1.0 # Account Locked logic
+        elif failures == 1:
+            return 0.3
+        elif failures == 2:
+            return 0.7
+        return 0.0
+
+# --- 3. BEHAVIORAL DETECTOR ---
+class BehavioralCheck:
+    def __init__(self):
+        self.HIGH_RISK_MERCHANTS = ["CryptoExchange", "BettingSite"]
+
+    def get_score(self, current_data, history):
+        """
+        Returns risk based on Spending and Merchant.
+        """
+        # 1. Merchant Check
+        if current_data.merchant in self.HIGH_RISK_MERCHANTS:
+            return 1.0
+
+        # 2. Amount Deviation (Z-Score approximation)
+        avg = history.get('avg_spend', 500.0) # Default avg
+        
+        if current_data.amount > (avg * 5):
+            return 1.0 # Huge spike
+        elif current_data.amount > (avg * 2):
+            return 0.5 # Moderate spike
+            
+        return 0.1 # Safe

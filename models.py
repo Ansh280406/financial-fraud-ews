@@ -1,18 +1,20 @@
+# models.py
 from pydantic import BaseModel
 from typing import Dict, Optional
 
 # --- INPUT DATA ---
 class LoginRequest(BaseModel):
     user_id: str
-    password: str  # <--- NEW FIELD
+    password: str
     ip_address: str
     device_fingerprint: str
     
-    # Optional fields for demo triggers
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    otp_failures: Optional[int] = 0
-    browser_type: Optional[str] = "Chrome"
+    # Optional fields for the specific detectors
+    latitude: float = 0.0
+    longitude: float = 0.0
+    amount: float = 0.0       # Added for Behavioral Check
+    merchant: str = "Unknown" # Added for Behavioral Check
+    otp_input: str = ""       # For OTP validation
 
 # --- OUTPUT DATA ---
 class RiskAssessmentResponse(BaseModel):
