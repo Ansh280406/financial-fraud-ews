@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class LoginAttempt(BaseModel):
-    email: str          # Changed from user_id to email
+    email: str
     password: str
     latitude: float
     longitude: float
