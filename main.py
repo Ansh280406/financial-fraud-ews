@@ -44,6 +44,12 @@ MOCK_DB = {
         "last_login_time": datetime.now() - timedelta(hours=1),
         "avg_spend": 500.0,
         "failed_otp_count": 5 # ALREADY HAS 5 FAILURES
+    },
+    "demo_impersonation": {
+        "last_lat": 28.7041, "last_lon": 77.1025, # New Delhi
+        "last_login_time": datetime.now() - timedelta(hours=5),
+        "avg_spend": 500.0,
+        "failed_otp_count": 0
     }
 }
 
@@ -59,7 +65,22 @@ def predict_risk(data: LoginRequest):
         "last_login_time": datetime.now() - timedelta(hours=24)
     })
 
+    # --- SIMULATION HACK FOR AI TESTING ---
+    # Since the HTML buttons don't send money amounts yet, we inject them here
+    # so the AI 'Isolation Forest' has something to judge.
+    
+    # 1. High Spenders (AI should catch these as Anomalies)
+    if data.user_id in ["demo_travel", "demo_impersonation"]:
+        if data.amount == 0: 
+            data.amount = 2500.0  # $2500 is way above normal ($20-$100)
+            
+    # 2. Normal User (AI should see this as Safe)
+    if data.user_id == "demo_user":
+        if data.amount == 0:
+            data.amount = 45.0    # $45 fits the normal pattern
+
     # B. Run Detectors (REAL LOGIC)
+    # The Behavioral Check will now use the .pkl model if available
     score_a1 = behavior_detector.get_score(data, user_history)
     score_a2 = geo_detector.get_score(data, user_history)
     score_a3 = otp_detector.get_score(data, user_history)
@@ -86,4 +107,4 @@ def predict_risk(data: LoginRequest):
 # Health Check
 @app.get("/")
 def home():
-    return {"status": "Active", "system": "Real-Time Logic Enabled"}
+    return {"status": "Active", "system": "Real-Time AI & Logic Enabled"}
