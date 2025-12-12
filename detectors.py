@@ -1,56 +1,70 @@
 import math
 import numpy as np
-import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# 1. GEO-VELOCITY (Impossible Travel)
+# --- 1. GEO-VELOCITY DETECTOR (The Physics Logic) ---
 class GeoVelocityCheck:
     def __init__(self):
-        self.MAX_SPEED_KMH = 800.0 
+        self.MAX_SPEED_KMH = 800.0  # Speed of a commercial airliner
 
     def calculate_haversine(self, lat1, lon1, lat2, lon2):
-        R = 6371 # Earth Radius km
-        d_lat, d_lon = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
-        a = math.sin(d_lat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon/2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        """Calculates the great-circle distance between two points on Earth."""
+        R = 6371  # Earth radius in km
+        d_lat = math.radians(lat2 - lat1)
+        d_lon = math.radians(lon2 - lon1)
+        a = (math.sin(d_lat / 2) ** 2 +
+             math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
+             math.sin(d_lon / 2) ** 2)
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         return R * c
 
-    def get_risk(self, current_lat, current_lon, history):
-        if not history or history.get('last_lat') == 0: return 0.0
-        
-        # Simple date parsing fallback
-        try:
-            last_login_dt = datetime.fromisoformat(history['last_login'])
-        except:
+    def get_risk(self, current_location: tuple, last_location: tuple, time_diff_hours: float) -> float:
+        """
+        Calculates risk based on speed of travel between two logins.
+        """
+        if not last_location or not current_location:
             return 0.0
-
-        dist = self.calculate_haversine(history['last_lat'], history['last_lon'], current_lat, current_lon)
-        hours_diff = (datetime.now() - last_login_dt).total_seconds() / 3600.0
+            
+        distance = self.calculate_haversine(last_location[0], last_location[1], 
+                                          current_location[0], current_location[1])
         
-        if hours_diff <= 0: hours_diff = 0.001 
-        speed = dist / hours_diff
+        if time_diff_hours <= 0:
+            time_diff_hours = 0.001 # Avoid division by zero
+            
+        speed = distance / time_diff_hours
         
-        if speed > self.MAX_SPEED_KMH: return 1.0 
+        # LOGIC: If speed > max_speed, it's physically impossible -> Risk 1.0
+        # Otherwise, scale risk relative to speed (optional)
+        if speed > self.MAX_SPEED_KMH:
+            return 1.0
         return 0.0
 
-# 2. BEHAVIOR AI (Keystroke Dynamics)
+# --- 2. BEHAVIOR DETECTOR (The Pattern Logic) ---
 class BehaviorCheck:
-    def __init__(self):
-        self.model = None
+    def get_risk(self, typing_delay_ms: float) -> float:
+        """
+        Simple logic: Bots type instantly (0ms) or too consistently.
+        Humans vary.
+        """
+        # LOGIC: If typing is inhumanly fast (< 50ms), it's a bot/script.
+        if typing_delay_ms < 50:
+            return 1.0 # High likelihood of Bot
+        # LOGIC: If typing is extremely slow (> 3000ms), might be older user or remote proxy lag
+        elif typing_delay_ms > 3000:
+            return 0.2
+        return 0.1 # Normal behavior
 
-    def get_risk(self, keystroke_delay):
-        return 0.0
-
-# 3. OTP BOT CHECK (Rate Limiting)
+# --- 3. OTP DETECTOR (The Frequency Logic) ---
 class OTPCheck:
-    def __init__(self):
-        self.attempts = {} 
-
-    def check_flood(self, user_id):
-        count = self.attempts.get(user_id, 0)
-        if count >= 3: return True 
-        self.attempts[user_id] = count + 1
-        return False
-        
-    def reset(self, user_id):
-        self.attempts[user_id] = 0
+    def get_risk(self, failed_attempts: int) -> float:
+        """
+        Calculates risk based on number of recent failed OTP entries.
+        """
+        # LOGIC: 3+ failures = Brute Force Attack
+        if failed_attempts >= 3:
+            return 1.0 # Veto-level risk
+        elif failed_attempts == 2:
+            return 0.6 # High suspicion
+        elif failed_attempts == 1:
+            return 0.1 # Normal typo
+        return 0.0
