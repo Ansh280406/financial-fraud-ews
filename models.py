@@ -1,25 +1,21 @@
-# models.py
 from pydantic import BaseModel
-from typing import Dict, Optional
+from typing import Optional
 
-# --- INPUT DATA ---
+# STEP 1: LOGIN REQUEST
 class LoginRequest(BaseModel):
     user_id: str
     password: str
-    ip_address: str
-    device_fingerprint: str
-    
-    # Optional fields for the specific detectors
-    latitude: float = 0.0
-    longitude: float = 0.0
-    amount: float = 0.0       # Added for Behavioral Check
-    merchant: str = "Unknown" # Added for Behavioral Check
-    otp_input: str = ""       # For OTP validation
+    latitude: float
+    longitude: float
+    avg_keystroke_delay: float  # <--- New AI Feature
 
-# --- OUTPUT DATA ---
-class RiskAssessmentResponse(BaseModel):
-    final_risk_score: float
-    security_action: str
-    risk_level: str
-    detector_scores: Dict[str, float]
-    weights: Dict[str, float]
+# STEP 2: OTP REQUEST
+class OTPRequest(BaseModel):
+    user_id: str
+    otp_code: str
+
+# RESPONSE
+class AuthResponse(BaseModel):
+    status: str       # "SUCCESS", "MFA_REQUIRED", "BLOCKED"
+    message: str
+    risk_score: float

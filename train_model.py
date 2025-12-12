@@ -1,30 +1,36 @@
-# train_model.py
 import numpy as np
 from sklearn.ensemble import IsolationForest
 import joblib
 
-# 1. GENERATE SYNTHETIC DATA
-# Imagine "Normal" behavior is spending between $20 and $100.
-# We generate 1000 data points representing normal users.
+# --- REAL LIFE IMPERSONATION DATA ---
+# Feature: "Average Keystroke Delay" (seconds)
+# Humans: Usually 0.1s to 0.3s per key.
+# Bots: Near 0.0s (Instant paste).
+# Impersonators/Elderly/Distracted: > 0.5s (Searching for keys).
+
 rng = np.random.RandomState(42)
-X_normal = rng.uniform(low=20, high=100, size=(1000, 1))
 
-# We also add a few "Outliers" (Fraud) to make the model robust
-# Fraudsters spend big: $1000 to $5000
-X_outliers = rng.uniform(low=1000, high=5000, size=(50, 1))
+# 1. Generate "Normal Human" Data (1000 samples)
+# Normal distribution around 0.15s (150ms) with some variance
+X_humans = 0.15 + 0.05 * rng.randn(1000, 1)
+# Clip to realistic bounds (0.05s to 0.4s)
+X_humans = np.clip(X_humans, 0.05, 0.4)
 
-# Combine them into one dataset
-X_train = np.concatenate([X_normal, X_outliers])
+# 2. Generate "Anomalies" (Bots & Impersonators)
+# Bots: Super fast (0.001s)
+X_bots = rng.uniform(low=0.0, high=0.02, size=(50, 1))
+# Slow Typers: Very slow (0.6s to 1.0s)
+X_slow = rng.uniform(low=0.6, high=1.0, size=(50, 1))
 
-# 2. TRAIN THE MODEL (Isolation Forest)
-# contamination=0.05 means "we expect about 5% of data to be weird"
-clf = IsolationForest(max_samples=100, random_state=42, contamination=0.05)
+# Combine
+X_train = np.concatenate([X_humans, X_bots, X_slow])
+
+# 3. Train Model
+clf = IsolationForest(contamination=0.1, random_state=42)
 clf.fit(X_train)
 
-# 3. SAVE THE TRAINED MODEL
-# We save this "Brain" to a file so our API can use it later.
+# 4. Save
 joblib.dump(clf, "fraud_model.pkl")
-
-print("✅ Model trained and saved as 'fraud_model.pkl'")
-print("   - Normal patterns learned: Spending $20-$100")
-print("   - Anomaly detection ready.")
+print("✅ Keystroke Dynamics Model Trained & Saved!")
+print("   - Learns that Humans type ~150ms per key.")
+print("   - Will flag Bots (instant) or Impersonators (hesitant).")
