@@ -2,137 +2,224 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Secure Bank Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Secure Bank - Login</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 380px; text-align: center; }
+        body { font-family: 'Segoe UI', sans-serif; background: #e0e5ec; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { width: 400px; perspective: 1000px; }
+        .card { background: white; padding: 2.5rem; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; position: relative; transition: transform 0.6s; transform-style: preserve-3d; }
         
-        h2 { color: #1a202c; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: background 0.2s; }
-        button:hover { background: #0056b3; }
+        h2 { color: #2d3748; margin-bottom: 5px; }
+        p.sub { color: #a0aec0; font-size: 0.9rem; margin-bottom: 20px; }
         
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; font-size: 1rem; transition: border 0.3s; }
+        input:focus { border-color: #3182ce; outline: none; }
+        
+        button { width: 100%; padding: 12px; background: #3182ce; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: background 0.2s; }
+        button:hover { background: #2b6cb0; }
+        button:disabled { background: #cbd5e0; cursor: not-allowed; }
+
         .hidden { display: none; }
-        #status { margin-top: 20px; font-weight: bold; padding: 10px; border-radius: 6px; font-size: 0.9rem; }
+        .status-msg { margin-top: 20px; padding: 10px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; }
+        .error { background: #fed7d7; color: #9b2c2c; }
+        .success { background: #c6f6d5; color: #276749; }
+        .warning { background: #feebc8; color: #9c4221; }
         
-        .error { background-color: #fff5f5; color: #c53030; border: 1px solid #fed7d7; }
-        .success { background-color: #f0fff4; color: #2f855a; border: 1px solid #c6f6d5; }
-        .warning { background-color: #fffff0; color: #b7791f; border: 1px solid #fbd38d; }
-        
-        .info-text { font-size: 12px; color: #718096; margin-top: 15px; }
+        /* Loading Spinner */
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3182ce; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h2>Global Bank</h2>
-        
-        <div id="login-form">
-            <input type="text" id="username" placeholder="Username (e.g., demo_user)">
-            <input type="password" id="password" placeholder="Password">
-            <button onclick="handleLogin()">Log In</button>
-            <p class="info-text">Protected by AI Fraud Detection</p>
+    <div class="container">
+        <div id="view-login" class="card">
+            <h2>Global Bank</h2>
+            <p class="sub">Secure Client Access</p>
+            
+            <div id="login-fields">
+                <input type="text" id="username" placeholder="Username (e.g. demo_user)">
+                <input type="password" id="password" placeholder="Password" onkeyup="trackTyping()">
+                
+                <div style="text-align: left; font-size: 0.8rem; color: #718096; margin: 5px 0;">
+                    📍 Location: <span id="loc-status">Requesting...</span>
+                </div>
+                
+                <button id="btn-login" onclick="attemptLogin()">Log In</button>
+            </div>
+            
+            <div id="login-status" class="hidden status-msg"></div>
         </div>
 
-        <div id="otp-form" class="hidden">
-            <h3>⚠️ Security Check</h3>
-            <p style="font-size: 0.9rem; color: #4a5568;">Unusual activity detected. Please verify your identity.</p>
-            <input type="text" id="otp" placeholder="Enter OTP (1234)">
-            <button onclick="handleOTP()">Verify OTP</button>
+        <div id="view-otp" class="card hidden">
+            <h2>⚠️ Security Check</h2>
+            <p class="sub">Unusual activity detected. Verify identity.</p>
+            
+            <p style="font-size: 0.9rem; color: #4a5568; margin-bottom: 15px;">
+                Enter the code sent to your mobile ending in **88.
+            </p>
+            
+            <input type="text" id="otp-code" placeholder="Enter OTP (1234)" maxlength="4" style="text-align: center; letter-spacing: 5px; font-size: 1.2rem;">
+            
+            <button onclick="verifyOtp()">Verify Securely</button>
+            <button onclick="backToLogin()" style="background: transparent; color: #718096; margin-top: 5px;">Cancel</button>
+            
+            <div id="otp-status" class="hidden status-msg"></div>
         </div>
 
-        <div id="status" class="hidden"></div>
+        <div id="view-dashboard" class="card hidden">
+            <div style="font-size: 3rem;">✅</div>
+            <h2>Welcome Back!</h2>
+            <p class="sub">You have successfully logged in.</p>
+            <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: left; margin-top: 20px;">
+                <strong>Account:</strong> Savings (...4589)<br>
+                <strong>Balance:</strong> $12,450.00
+            </div>
+            <button onclick="location.reload()" style="margin-top: 20px;">Logout</button>
+        </div>
     </div>
 
     <script>
+        // --- SENSOR VARIABLES ---
+        let keystrokes = [];
+        let lastKeyTime = 0;
+        let userLat = 0.0;
+        let userLon = 0.0;
+
+        // 1. Get Location Immediately
+        window.onload = function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        userLat = pos.coords.latitude;
+                        userLon = pos.coords.longitude;
+                        document.getElementById('loc-status').innerText = "✅ Acquired";
+                        document.getElementById('loc-status').style.color = "green";
+                    },
+                    (err) => {
+                        document.getElementById('loc-status').innerText = "❌ Denied (Risk Increased)";
+                        document.getElementById('loc-status').style.color = "red";
+                    }
+                );
+            }
+        };
+
+        // 2. Track Typing Speed (Bot Detection)
+        function trackTyping() {
+            const now = Date.now();
+            if (lastKeyTime !== 0) {
+                keystrokes.push(now - lastKeyTime);
+            }
+            lastKeyTime = now;
+        }
+
+        function getAvgTypingDelay() {
+            if (keystrokes.length === 0) return 0; // Suspicious (Paste/Bot)
+            const sum = keystrokes.reduce((a, b) => a + b, 0);
+            return sum / keystrokes.length;
+        }
+
         // --- HANDLERS ---
 
-        async function handleLogin() {
+        async function attemptLogin() {
             const user = document.getElementById('username').value;
             const pass = document.getElementById('password').value;
-            const statusDiv = document.getElementById('status');
-            const loginForm = document.getElementById('login-form');
-            const otpForm = document.getElementById('otp-form');
+            const statusEl = document.getElementById('login-status');
+            const btn = document.getElementById('btn-login');
 
-            // Reset UI
-            statusDiv.className = "hidden";
-            statusDiv.innerText = "";
-
-            if (!user) {
-                showStatus("Please enter a username", "error");
+            // Client-Side Password Check
+            if (pass !== "password123") {
+                statusEl.innerText = "Incorrect Password";
+                statusEl.className = "status-msg error";
+                statusEl.classList.remove('hidden');
                 return;
             }
 
-            // Show loading state
-            statusDiv.innerText = "Analyzing Risk Profile...";
-            statusDiv.className = "warning";
-            statusDiv.classList.remove("hidden");
+            // UI Loading State
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loader"></span> Analyzing Risk...';
+            statusEl.classList.add('hidden');
 
             try {
-                // 1. Call the PREDICT Endpoint
-                const res = await fetch('https://financial-fraud-ews.onrender.com/predict', {
+                // Prepare Payload
+                const payload = {
+                    user_id: user,
+                    password: pass,
+                    latitude: userLat,
+                    longitude: userLon,
+                    typing_delay: getAvgTypingDelay(),
+                    device_fingerprint: navigator.userAgent // Simple fingerprint
+                };
+
+                console.log("Sending Payload:", payload);
+
+                // CALL BACKEND
+                const res = await fetch('/predict', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        user_id: user,
-                        password: pass,
-                        ip_address: "192.168.1.1",     // Simulated for prototype
-                        device_fingerprint: "chrome_win10" // Simulated for prototype
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
                 });
 
-                if (!res.ok) {
-                    throw new Error("Server Error or User Not Found");
-                }
-
                 const data = await res.json();
-                const action = data.security_action;
-
-                // 2. Handle the Security Action
-                if (action.includes("BLOCK")) {
-                    // CASE: Block
-                    showStatus(action, "error");
-                
-                } else if (action.includes("FLAG") || action.includes("CHALLENGE")) {
-                    // CASE: Challenge (Show OTP)
-                    loginForm.classList.add("hidden");
-                    otpForm.classList.remove("hidden");
-                    showStatus(action, "warning");
-                
-                } else if (action.includes("Email")) {
-                     // CASE: Impersonation (Show Warning but Allow or Ask for Info)
-                     showStatus(action + " - Please check your inbox.", "warning");
-
-                } else {
-                    // CASE: Allow
-                    showStatus("Login Successful! Redirecting...", "success");
-                    // setTimeout(() => window.location.href = "/dashboard", 1000); // Redirect logic
-                }
+                handleRiskDecision(data);
 
             } catch (e) {
+                statusEl.innerText = "Server Connection Failed";
+                statusEl.className = "status-msg error";
+                statusEl.classList.remove('hidden');
                 console.error(e);
-                showStatus("Error: " + e.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Log In";
             }
         }
 
-        function handleOTP() {
-            const otp = document.getElementById('otp').value;
+        function handleRiskDecision(data) {
+            const action = data.security_action;
+            const statusEl = document.getElementById('login-status');
+
+            if (action.includes("BLOCK")) {
+                // CASE: HIGH RISK (Bot / Travel)
+                statusEl.innerText = action;
+                statusEl.className = "status-msg error";
+                statusEl.classList.remove('hidden');
             
-            // Since we don't have a backend OTP endpoint in the prototype, 
-            // we simulate the verification here.
-            if (otp === "1234") {
-                document.getElementById('otp-form').classList.add("hidden");
-                showStatus("Identity Verified. Login Successful!", "success");
+            } else if (action.includes("FLAG") || action.includes("CHALLENGE") || action.includes("Email")) {
+                // CASE: SUSPICIOUS -> OTP
+                document.getElementById('view-login').classList.add('hidden');
+                document.getElementById('view-otp').classList.remove('hidden');
+            
             } else {
-                alert("Invalid OTP. Try '1234'");
+                // CASE: SAFE -> DASHBOARD
+                showDashboard();
             }
         }
 
-        function showStatus(message, type) {
-            const el = document.getElementById('status');
-            el.innerText = message;
-            el.className = type; // Apply class (error, success, warning)
-            el.classList.remove("hidden");
+        function verifyOtp() {
+            const code = document.getElementById('otp-code').value;
+            const statusEl = document.getElementById('otp-status');
+
+            // Simulate Bot Check on OTP entry (if pasted instantly)
+            // Note: In real app, we would track typing here too.
+            
+            if (code === "1234") {
+                showDashboard();
+            } else {
+                statusEl.innerText = "Invalid OTP. Try '1234'";
+                statusEl.className = "status-msg error";
+                statusEl.classList.remove('hidden');
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-otp').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.remove('hidden');
+        }
+
+        function backToLogin() {
+            document.getElementById('view-login').classList.remove('hidden');
+            document.getElementById('view-otp').classList.add('hidden');
         }
     </script>
 </body>
