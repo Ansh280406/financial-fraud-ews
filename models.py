@@ -1,21 +1,15 @@
 from pydantic import BaseModel
-from typing import Optional
 
-# STEP 1: LOGIN REQUEST
-class LoginRequest(BaseModel):
+# Input model for the API
+# This class MUST be named 'LoginAttempt' exactly
+class LoginAttempt(BaseModel):
     user_id: str
     password: str
-    latitude: float
-    longitude: float
-    avg_keystroke_delay: float  # <--- New AI Feature
-
-# STEP 2: OTP REQUEST
-class OTPRequest(BaseModel):
-    user_id: str
-    otp_code: str
-
-# RESPONSE
-class AuthResponse(BaseModel):
-    status: str       # "SUCCESS", "MFA_REQUIRED", "BLOCKED"
-    message: str
-    risk_score: float
+    ip_address: str
+    device_fingerprint: str
+    
+# Output model for the API 
+class RiskAssessment(BaseModel):
+    final_risk_score: float
+    security_action: str
+    detector_scores: dict
